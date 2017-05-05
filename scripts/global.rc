@@ -1,0 +1,122 @@
+# Version 0.1
+# Global resource file for ILVTE scripts
+# Default values are enclosed in [ ]
+
+Variable		Value		Options
+--------		-----		-------
+pi_camera_method	picam		[pivid] / picam / off
+
+pivid
+=====
+pivid_use_usb		no		[yes] / no	Write Pi camera video to a USB device
+pivid_time		120		[900]		Recording time in seconds, default is 15 minutes
+pivid_day_start		06		[06]		Hour when day recording options start
+#
+# -a is annotate date and time , -ae is font size, text colour and background colour
+#
+pivid_day_options	-n -hf -vf -vs -ex antishake -awb horizon -a 1036 -ae 21,0xff,0x808000
+pivid_night_start	17		[18]		Hour when night recording options start
+pivid_night_options	-n -hf -vf -vs -br 55 -ex night -a 1036 -ae 21,0xff,0x808000
+#
+# Some examples... 640x480, 960x540, 1296x730, 1296x972 (4:3), 1920x1080
+#
+pivid_normal_res	-w 960 -h 540
+pivid_high_res		-w 1296 -h 972
+pivid_storage_chg	32		[32]		Storage size in Gb.
+
+picamera
+========
+picam_use_usb		no		[yes] / no	Write Pi camera video to USB device
+picam_time		900		[900]		Recording time in seconds, default is 15 mins
+picam_annotate_size	40		[32]		Valid text sizes are from 6 - 160
+picam_text_background	none		[none]		Text annotation background colour
+picam_width		640		[1296]		Examples... 960, 1296, 1296 (4:3), 1920
+picam_height		480		[730]		Examples... 540,  730,  972 (4:3), 1080
+picam_framerate		20		[24]
+picam_quality		25		[25]		Video encoder quality, values 10 - 40 (10 = high, 40 = low)
+picam_stream_on		no		yes / [no]	Make a separate copy of the camera feed for streaming
+picam_stream_port       5001		[5001]		HTTP port for streaming camera feed
+
+motion
+======
+motion_enabled		no		[yes] / no	Turn on / off motion USB recording
+motion_GPS_annotate	no		[yes] / no	Add GPS data to video
+motion_camera1_dev	/dev/video0	/dev/video0	Camera 1 device path
+motion_camera1_use_usb	no		yes / [no]	Write motion video to USB device
+motion_camera1_time	480		[600]		Video length in seconds (0 is infinite), default is 10 mins
+motion_camera1_width	800		[512]		Camera pixel width resolution
+motion_camera1_height	448		[288]		Camera pixel height resolution
+motion_camera1_fps	30		[8]		Maximum desired frames per second
+motion_camera2_dev	none		[none]		Camera 2 device path
+motion_camera2_use_usb	yes		[yes] / no	Write motion video to USB device
+motion_camera2_time	460		[600]		Video length in seconds (0 is infinite), default is 10 mins
+motion_camera2_width	320		[512]		Camera pixel width resolution
+motion_camera2_height	240		[288]		Camera pixel height resolution
+motion_camera2_fps	8		[8]		Maximum desired frames per second
+
+GPS
+==========
+GPS_enabled		yes		[yes] / no	If 'no' recording starts immediately, date and time are not set.
+GPS_wait		no		[yes] / no	Wait for GPS fix before recording starts
+GPS_device		/dev/ttyUSB0	[/dev/ttyAMA0]	Name of the GPS device gpsd will use
+GPS_port		2947	        [2947]		Port of the GPS device gpsd will use
+GPS_speed		mph		[kmh] / mph
+GPS_min_speed		1.00		[1.00]		Everything above this speed (in m/s) is considered travelling time
+
+audio
+=====
+audio_enabled		no		yes / [no]	Turn audio recording on / off
+audio_use_usb		no		yes / [no]	Write audio to USB device
+audio_device		plughw:1,0	[plughw:1,0]	Audio device to use for recording
+audio_length		720		[720]		Audio recording length in seconds
+audio_options		-c 2 -r 16000 -f S16_LE
+
+status
+======
+high_temp		80		[82]		Celsius temperature threshold when motion will be stopped
+low_temp		77		[78]		Temperature threshold when motion resumes
+over_temp		84		[84]		Temperature (in celsius) when the Pi will be shut down
+status_append_log	no		[yes] / no	Append to the current status file or start a new one
+status_logs		5		[5]		Number of status logfiles to keep in rotation
+
+General
+=======
+main_directory		/home/camera			Default location of front, rear, sound and usb directories
+log_directory		/home/camera/logs		Log directory location for GPS, route and status files
+usb_directory		/home/camera/usb		USB storage mount point
+usb_mount		no		[yes] / no	Mount USB storage
+usb_device		/dev/sda1	[/dev/sda1]	USB storage device path
+use_gpio_leds		yes		yes / [no]	Use OS and status LEDs #1 & #2
+led_1_gpio		0		[0]		GPIO number to use for LED #1 (indicates OS status)
+led_2_gpio		4		[4]		GPIO number to use for LED #2 (camera status LED)
+quiet_mode		no		yes / [no]	OS and status LEDs are mostly off, minimal notification
+use_button		no		[yes] / no	Enable or disable the button (used with pwr_butt)
+button_gpio		5		[5]		GPIO number to monitor for a button press
+proc_end_wait		10		[10]		Max seconds to wait for processes to complete before shutdown / reboot
+video_delay		6		[6]		Delay before Pi camera starts recording after start up
+shutdown_method		pios		[pios] / pico	Shutdown or reboot the Pi using the OS or via the UPS PIco
+i2c_number		1		[1] / 0		I2C bus number to use
+samba_enabled		no		yes / [no]	Start SAMBA
+
+UPS PIco
+========
+pico_enabled		no		yes / [no]	Is the UPS PIco available
+pico_fan		no		yes / [no]	Do we have the fan too?
+pico_temp1_speed	60		[60]		Temperature fan speed 25%
+pico_temp2_speed	67		[67]		Temperature fan speed 50%
+pico_temp3_speed	73		[73]		Temperature fan speed 75%
+pico_temp4_speed	77		[77]		Temperature fan speed 100%
+pico_bat_runtime	300		[60]		Number of seconds to run on battery power before shutdown
+pico_reset		no		yes / [no]	Reset the UPS PIco at startup
+
+Home
+====
+home_enabled		no		yes / [no]	Enable WiFi file transfer before shutdown
+home_copy_method	rsync		[rsync] / scp	How the files will be copied to the remote server
+home_local_dir		/home/camera/	[/home/camera/]	Directory location to begin copying from
+home_remote_user	root		[root]		User name which will connect to the remote host
+home_remote_host	192.168.1.51			The IP or name of the remote host which receives the files
+home_remote_dir		/media/carpi/			Directory on remote host where the files will be copied to
+home_delete_local	no		yes / [no]	Delete local files (on the Pi) after copying (rsync only)
+home_delete_remote	no		yes / [no]	Delete files on remote host that do not exist on local host (rsync only)
+home_network_profile	wifi_wpa			Network profile name to start (Arch Linux only)
