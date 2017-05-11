@@ -7,10 +7,18 @@ import time
 import json
 from datetime import datetime
 from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
+from vtelog import vteLog
 
 PORT_NUMBER = 8080
 RADAR_DEVICE = "/dev/ttyUSB0"
 MESSAGE_LENGTH = 23
+
+main_directory = "/home/camera/vte"
+log_directory = main_directory + "/logs"
+data_directory = main_directory + "/data"
+radarlog_directory = data_directory + "/radar/"
+logfile_out = log_directory + "/status.log"
+
 
 #This class will handles any incoming request from
 #the browser 
@@ -56,6 +64,10 @@ t.start()
 print 'Started httpserver on port ' , PORT_NUMBER
 print "Reading Serial Port..."
 
+log = open(logfile_out, "a", 1) # non blocking
+
+radarlog = vteLog(radarlog_directory,'radar','csv')
+
 #
 #  Read bytes off of serial port
 #
@@ -98,6 +110,13 @@ while True:
                 locked_target = byte_value
              if (i == 5):
                 mode = byte_value
+
+          radarlog.write_log(str(current_timestamp) + ', '+ \
+                             str(target_speed) + ', ' + \
+                             str(patrol_speed) + ', ' + \
+                             str(locked_target) + ', ' + \
+                             str(mode) + ', ' + \
+                             str(errors) + '\n')
 
 #
 #  Handle exit with ctrl+c

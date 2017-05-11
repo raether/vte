@@ -6,23 +6,23 @@ Variable		Value		Options
 --------		-----		-------
 pi_camera_method	picam		[pivid] / picam / off
 
-pivid
-=====
-pivid_use_usb		no		[yes] / no	Write Pi camera video to a USB device
-pivid_time		120		[900]		Recording time in seconds, default is 15 minutes
-pivid_day_start		06		[06]		Hour when day recording options start
+# pivid
+# =====
+# pivid_use_usb		no		[yes] / no	Write Pi camera video to a USB device
+# pivid_time		120		[900]		Recording time in seconds, default is 15 minutes
+# pivid_day_start		06		[06]		Hour when day recording options start
 #
 # -a is annotate date and time , -ae is font size, text colour and background colour
 #
-pivid_day_options	-n -hf -vf -vs -ex antishake -awb horizon -a 1036 -ae 21,0xff,0x808000
-pivid_night_start	17		[18]		Hour when night recording options start
-pivid_night_options	-n -hf -vf -vs -br 55 -ex night -a 1036 -ae 21,0xff,0x808000
+# pivid_day_options	-n -hf -vf -vs -ex antishake -awb horizon -a 1036 -ae 21,0xff,0x808000
+# pivid_night_start	17		[18]		Hour when night recording options start
+# pivid_night_options	-n -hf -vf -vs -br 55 -ex night -a 1036 -ae 21,0xff,0x808000
 #
 # Some examples... 640x480, 960x540, 1296x730, 1296x972 (4:3), 1920x1080
 #
-pivid_normal_res	-w 960 -h 540
-pivid_high_res		-w 1296 -h 972
-pivid_storage_chg	32		[32]		Storage size in Gb.
+# pivid_normal_res	-w 960 -h 540
+# pivid_high_res		-w 1296 -h 972
+# pivid_storage_chg	32		[32]		Storage size in Gb.
 
 picamera
 ========
@@ -37,28 +37,11 @@ picam_quality		25		[25]		Video encoder quality, values 10 - 40 (10 = high, 40 = 
 picam_stream_on		no		yes / [no]	Make a separate copy of the camera feed for streaming
 picam_stream_port       5001		[5001]		HTTP port for streaming camera feed
 
-motion
-======
-motion_enabled		no		[yes] / no	Turn on / off motion USB recording
-motion_GPS_annotate	no		[yes] / no	Add GPS data to video
-motion_camera1_dev	/dev/video0	/dev/video0	Camera 1 device path
-motion_camera1_use_usb	no		yes / [no]	Write motion video to USB device
-motion_camera1_time	480		[600]		Video length in seconds (0 is infinite), default is 10 mins
-motion_camera1_width	800		[512]		Camera pixel width resolution
-motion_camera1_height	448		[288]		Camera pixel height resolution
-motion_camera1_fps	30		[8]		Maximum desired frames per second
-motion_camera2_dev	none		[none]		Camera 2 device path
-motion_camera2_use_usb	yes		[yes] / no	Write motion video to USB device
-motion_camera2_time	460		[600]		Video length in seconds (0 is infinite), default is 10 mins
-motion_camera2_width	320		[512]		Camera pixel width resolution
-motion_camera2_height	240		[288]		Camera pixel height resolution
-motion_camera2_fps	8		[8]		Maximum desired frames per second
-
 GPS
 ==========
 GPS_enabled		yes		[yes] / no	If 'no' recording starts immediately, date and time are not set.
 GPS_wait		no		[yes] / no	Wait for GPS fix before recording starts
-GPS_device		/dev/ttyUSB0	[/dev/ttyAMA0]	Name of the GPS device gpsd will use
+GPS_device		/dev/ttyUSB1	[/dev/ttyAMA0]	Name of the GPS device gpsd will use
 GPS_port		2947	        [2947]		Port of the GPS device gpsd will use
 GPS_speed		mph		[kmh] / mph
 GPS_min_speed		1.00		[1.00]		Everything above this speed (in m/s) is considered travelling time
@@ -81,13 +64,12 @@ status_logs		5		[5]		Number of status logfiles to keep in rotation
 
 General
 =======
-main_directory		/home/camera			Default location of front, rear, sound and usb directories
-log_directory		/home/camera/logs		Log directory location for GPS, route and status files
-usb_directory		/home/camera/usb		USB storage mount point
-usb_mount		no		[yes] / no	Mount USB storage
-usb_device		/dev/sda1	[/dev/sda1]	USB storage device path
+main_directory		/home/camera/vte		default location of front, rear, sound and usb directories
+log_directory		/home/camera/vte/logs		Log directory location for GPS, route and status files
+# usb_directory		/home/camera/usb		USB storage mount point
+# usb_mount		no		[yes] / no	Mount USB storage
+# usb_device		/dev/sda1	[/dev/sda1]	USB storage device path
 use_gpio_leds		yes		yes / [no]	Use OS and status LEDs #1 & #2
-led_1_gpio		0		[0]		GPIO number to use for LED #1 (indicates OS status)
 led_2_gpio		4		[4]		GPIO number to use for LED #2 (camera status LED)
 quiet_mode		no		yes / [no]	OS and status LEDs are mostly off, minimal notification
 use_button		no		[yes] / no	Enable or disable the button (used with pwr_butt)
