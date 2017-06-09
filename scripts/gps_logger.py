@@ -8,6 +8,7 @@ import threading
 from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
 import json
 from vtelog import vteLog
+from datetime import datetime
 
 PORT_NUMBER = 9001
 
@@ -96,7 +97,10 @@ if __name__ == '__main__':
             curr_speed = round(gpsd.fix.speed * 2.23694)
             curr_heading = gpsd.fix.track
 
-            gpslog.write_log(str(curr_time) + ', '+ \
+            current_timestamp = datetime.now().strftime('%Y-%m-%d %H;%M:%S')
+
+            gpslog.write_log(str(current_timestamp) + ', ' + \
+                             str(curr_time) + ', ' + \
                              str(curr_lat) + ', ' + \
                              str(curr_long) + ', ' + \
                              str(curr_speed) + ', ' + \

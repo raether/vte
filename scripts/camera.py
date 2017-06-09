@@ -5,10 +5,12 @@ from __future__ import print_function
 from datetime import datetime, timedelta, timezone
 
 import picamera
+from PIL import Image
 from picamera import Color
 import datetime as dt
 
 import sys
+import getopt
 import signal
 import os.path
 
@@ -26,40 +28,6 @@ data_directory = main_directory + "/data"
 logfile_out = log_directory + "/status.log"
 
 video_delay = 1
-camera_view = "back"    # Valid views are front, back, and left
-
-if (camera_view == 'front'):
-    picam_annotate_size = 35
-    picam_text_background = "None"
-    picam_width = 1920
-    picam_height = 1080
-    picam_framerate = 30
-    picam_quality = 25
-    video_directory = data_directory + '/front/'
-elif (camera_view == 'back'):
-    picam_annotate_size = 19
-    picam_text_background = "None"
-    picam_width = 960
-    picam_height = 540
-    picam_framerate = 30
-    picam_quality = 25
-    video_directory = data_directory + '/back/'
-elif (camera_view == 'left'):
-    picam_annotate_size = 35
-    picam_text_background = "None"
-    picam_width = 1920
-    picam_height = 1080
-    picam_framerate = 30
-    picam_quality = 25
-    video_directory = data_directory + '/left/'
-else:
-    picam_annotate_size = 35
-    picam_text_background = "None"
-    picam_width = 1920
-    picam_height = 1080
-    picam_framerate = 30
-    picam_quality = 25
-    video_directory = data_directory + '/front/'
     
 #################################################################################################################
 #
@@ -68,7 +36,7 @@ else:
 def gps_annotate():
     
     try:
-        r = requests.get('http://localhost:9001')
+        r = requests.get('http://front.local:9001')
         if r.status_code == 200:
             try:
                 data = json.loads(r.text)
@@ -95,7 +63,7 @@ def gps_annotate():
 def radar_annotate():
 
     try:
-        r = requests.get('http://localhost:8080')
+        r = requests.get('http://front.local:9002')
         if r.status_code == 200:
             data = json.loads(r.text)
             patrol_speed = str(data["PatrolSpeed"])
@@ -116,16 +84,22 @@ def radar_annotate():
 
 def vte_annotate():
 
+    global camera_view
+
     current_time = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     if (camera_view == "front"):
         gps_text = gps_annotate()
         radar_text = radar_annotate()
         camera_annotate = " Front Camera  " + current_time + "   " + radar_text + gps_text + " "
-    elif (camera_view == "back"):
-        camera_annotate = " Back Camera  " + current_time
+    elif (camera_view == "rear"):
+        gps_text = gps_annotate()
+        radar_text = radar_annotate()
+        camera_annotate = " Rear Camera  " + current_time + "   " + radar_text + gps_text + " "
     elif (camera_view == "left"):
-        camera_annotate = " Left Camera  " + current_time
+        gps_text = gps_annotate()
+        radar_text = radar_annotate()
+        camera_annotate = " Left Camera  " + current_time + "   " + radar_text + gps_text + " "
     else:
         camera_annotate = ""
 
@@ -148,72 +122,190 @@ def ready_to_rotate(last_rotate) :
     else:
         return False
                  
+def start_camera():
 
-#################################################################################################################
-#   MAIN
-#################################################################################################################
-
-
-log = open(logfile_out, "a", 1) # non blocking
-
-time.sleep(video_delay)
-
-with picamera.PiCamera() as camera:
-
-    #
-    #  set camera properties
-    #
-    camera.resolution = (picam_width, picam_height)
-    camera.framerate = picam_framerate
-    # camera.vflip = True
-    # camera.hflip = True
-    camera.annotate_text_size = picam_annotate_size
-    camera.annotate_foreground = Color('white')
-    # camera.annotate_background = Color('Black')
-    # camera.annotate_frame_num = True
-    camera.awb_mode = 'horizon'
-
-    cmdline = ['cvlc','-q','stream:///dev/stdin','--sout','#standard{access=http,mux=ts,dst=:5001}',':demux=h264','-' ]
-    #
-    #  Alternative cmdline for sending RTP stream
-    #  'rtp{sdp=rtsp://:5001/video}','--sout-rtp-caching=200'
-    #
-    if (camera_view == 'back'):
-        myvlc = subprocess.Popen(cmdline, stdin=subprocess.PIPE)
-
-    #
-    #  Main loop for recording video
-    #
-    while True:
+    global camera_view
+    global picam_annotate_size
+    global picam_text_background
+    global picam_width
+    global picam_height
+    global picam_framerate
+    global picam_quality 
+    global video_directory
+    global display
+    global stream_video
+    global log
     
-        video_file = video_directory + camera_view + "_" + dt.datetime.now().strftime('%Y%m%d_%H%M.h264')
-        last_rotate = dt.datetime.now().strftime('%M')
-        log_data = dt.datetime.now().strftime('%T [CAMERA]: ') + "Started recording " + video_file + "\n"
-        log.write(log_data)
+
+
+    with picamera.PiCamera() as camera:
+
         #
-        #  Set the preview screen location on the HDMI Display
+        #  set camera properties
         #
-        camera.start_preview(fullscreen=False, window = (0, 38, 960, 540))
+        camera.resolution = (picam_width, picam_height)
+        camera.framerate = picam_framerate
+        # camera.vflip = True
+        # camera.hflip = True
+        camera.annotate_text_size = picam_annotate_size
+        camera.annotate_foreground = Color('white')
+        # camera.annotate_background = Color('Black')
+        # camera.annotate_frame_num = True
+        camera.awb_mode = 'horizon'
+
+        cmdline = ['cvlc','-q','stream:///dev/stdin','--sout','#standard{access=http,mux=ts,dst=:5001}',':demux=h264','-' ]
         #
-        #  Start recording the video based on the camera properties
+        #  Alternative cmdline for sending RTP stream
+        #  'rtp{sdp=rtsp://:5001/video}','--sout-rtp-caching=200'
         #
-        camera.start_recording(video_file, quality=picam_quality, format='h264')
+        if (stream_video):
+            myvlc = subprocess.Popen(cmdline, stdin=subprocess.PIPE)
+
         #
-        #  Start a h.264 stream to the http port
+        #  Main loop for recording video
         #
-        if (camera_view == 'back'):
-            camera.start_recording(myvlc.stdin, format='h264', splitter_port=2)
+        while True:
+        
+            video_file = video_directory + camera_view + "_" + dt.datetime.now().strftime('%Y%m%d_%H%M.h264')
+            last_rotate = dt.datetime.now().strftime('%M')
+            log_data = dt.datetime.now().strftime('%T [CAMERA]: ') + "Started recording " + video_file + "\n"
+            log.write(log_data)
+            
+            #
+            #  Set the preview screen location on the HDMI Display
+            #
+
+            if (display == 'full'):   # Full Screen Display
+                camera.start_preview(fullscreen=True)               
+            elif (display == 'ul'):   # Upper Left Display
+                camera.start_preview(fullscreen=False, window = (0, 0, 960, 539))
+            elif (display == 'ur'):   # Upper Right Display
+                camera.start_preview(fullscreen=False, window = (960, 0, 960, 540))
+            elif (display == 'll'):   # Lower Left Display
+                camera.start_preview(fullscreen=False, window = (0, 540, 960, 540))
+            elif (display == 'lr'):   # Lower Right Display
+                camera.start_preview(fullscreen=False, window = (960, 540, 960, 540))
+            else:
+                camera.start_preview(fullscreen=True)
+            
+            #
+            #  Start recording the video based on the camera properties
+            #
+            camera.start_recording(video_file, quality=picam_quality, format='h264')
+            #
+            #  Start a h.264 stream to the http port
+            #
+            if (stream_video):
+                camera.start_recording(myvlc.stdin, format='h264', splitter_port=2)
+        
+            start = dt.datetime.now()
+            #
+            #  Record video only for the picam_time duration.  Then start a new file.
+            #
+            while not ready_to_rotate(last_rotate):   
+                camera.annotate_text = vte_annotate()
+                camera.wait_recording(0.2)
+
+            camera.stop_recording()
+            if (stream_video):
+                camera.stop_recording(splitter_port=2)
+
+def set_camera_properties():
     
-        start = dt.datetime.now()
-        #
-        #  Record video only for the picam_time duration.  Then start a new file.
-        #
-        while not ready_to_rotate(last_rotate):   
-            camera.annotate_text = vte_annotate()
-            camera.wait_recording(0.2)
+    global camera_view
+    global picam_annotate_size
+    global picam_text_background
+    global picam_width
+    global picam_height
+    global picam_framerate
+    global picam_quality 
+    global video_directory
+    
+    
+    if (camera_view == 'front'):
+        picam_annotate_size = 35
+        picam_text_background = "None"
+        picam_width = 1920
+        picam_height = 1080
+        picam_framerate = 30
+        picam_quality = 25
+        video_directory = data_directory + '/front/'
+    elif (camera_view == 'rear'):
+        picam_annotate_size = 11
+        picam_text_background = "None"
+        picam_width = 640
+        picam_height = 360
+        picam_framerate = 24
+        picam_quality = 25
+        video_directory = data_directory + '/rear/'
+    elif (camera_view == 'left'):
+        picam_annotate_size = 35
+        picam_text_background = "None"
+        picam_width = 1920
+        picam_height = 1080
+        picam_framerate = 30
+        picam_quality = 25
+        video_directory = data_directory + '/left/'
+    else:
+        camera_view = 'ftont'
+        picam_annotate_size = 35
+        picam_text_background = "None"
+        picam_width = 1920
+        picam_height = 1080
+        picam_framerate = 30
+        picam_quality = 25
+        video_directory = data_directory + '/front/'
+    
+#
+#  Main
+#
 
-        camera.stop_recording()
-        if (camera_view == 'back'):
-            camera.stop_recording(splitter_port=2)
+def main(argv):
 
-sys.exit(0)
+    global camera_view
+    global picam_annotate_size
+    global picam_text_background
+    global picam_width
+    global picam_height
+    global picam_framerate
+    global picam_quality 
+    global video_directory
+    global display
+    global stream_video
+    global log
+
+    display = 'full'
+    stream_video = False
+    camera_view = 'front'
+    
+    try:
+      opts, args = getopt.getopt(argv,"hv:d:s",["help", "view=", "display=", "stream", "vflip", "hflip"])
+    except getopt.GetoptError:
+      print ('camera.py -v <camera_view> -d <display> -s')
+      sys.exit(2)
+      
+    for opt, arg in opts:
+      if opt == '-h':
+         print ('camera.py -v <camera_view> -d <display> -s')
+         sys.exit()
+      elif opt in ("-v", "--view"):
+         camera_view = arg
+      elif opt in ("-d", "--display"):
+         display = arg
+      elif opt in ("-s", "--stream"):
+         stream_video = True
+      elif opt in ("--vflip"):
+         set_vflip = True
+      elif opt in ("--hflip"):
+         set_hflip = True
+
+    log = open(logfile_out, "a", 1) # non blocking
+    time.sleep(video_delay)
+
+    set_camera_properties()
+    start_camera()
+
+    sys.exit(0)
+
+if __name__ == "__main__":
+   main(sys.argv[1:])

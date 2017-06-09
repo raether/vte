@@ -9,8 +9,8 @@ from datetime import datetime
 from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
 from vtelog import vteLog
 
-PORT_NUMBER = 8080
-RADAR_DEVICE = "/dev/ttyUSB0"
+PORT_NUMBER = 9002
+RADAR_DEVICE = "/dev/ttyUSB1"
 MESSAGE_LENGTH = 23
 
 main_directory = "/home/camera/vte"
@@ -24,23 +24,23 @@ logfile_out = log_directory + "/status.log"
 #the browser 
 class radarHandler(BaseHTTPRequestHandler):
 	
-	#Handler for the GET requests
-	def do_GET(self):
-		self.send_response(200)
-		self.send_header('Content-type','text/html')
-		self.end_headers()
-		# Send the html message
-		message = json.dumps({
-                        'TargetSpeed' : target_speed,
-                        'PatrolSpeed' : patrol_speed,
-                        'LockedTarget' : locked_target
-                        })
-		self.wfile.write(message)
-		return
+    #Handler for the GET requests
+    def do_GET(self):
+            self.send_response(200)
+            self.send_header('Content-type','text/html')
+            self.end_headers()
+            # Send the html message
+            message = json.dumps({
+                    'TargetSpeed' : target_speed,
+                    'PatrolSpeed' : patrol_speed,
+                    'LockedTarget' : locked_target
+                    })
+            self.wfile.write(message)
+            return
 
 	
-        def log_message(self, format, *args):
-                return
+    def log_message(self, format, *args):
+        return
 
 #################################################################################
 #  Main
@@ -68,6 +68,10 @@ log = open(logfile_out, "a", 1) # non blocking
 
 radarlog = vteLog(radarlog_directory,'radar','csv')
 
+target_speed = 0
+patrol_speed = 0
+locked_target = 0
+
 #
 #  Read bytes off of serial port
 #
@@ -75,6 +79,7 @@ while True:
    try:
 
         current_byte = radar.read()
+            
         if not current_byte:
                 byte_value = 0
                 print "Radar Not Connected... Trying to reconnect"
@@ -93,7 +98,7 @@ while True:
         #
         if (byte_value == MESSAGE_LENGTH):
 
-          current_timestamp = datetime.now().strftime('%Y-%m-%d %H;%M:%S')
+          current_timestamp = datetime.now().strftime('%Y-%m-%d %H;%M:%S.%f')[:-3]
 
           for i in range(MESSAGE_LENGTH-1):
              current_byte = radar.read()
