@@ -8,7 +8,7 @@ from gps import *
 print 'Attempting to access GPS time...'
 
 try:
-	gpsd = gps(host="front.local", port=2947, mode=WATCH_ENABLE)
+	gpsd = gps(host="left.local", port=2947, mode=WATCH_ENABLE)
 except:
 	print 'No GPS connection present. TIME NOT SET.'
 	sys.exit()

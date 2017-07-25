@@ -1,3 +1,3 @@
 #!/bin/bash
 
-omxplayer --live --win 1,541,959,1080 http://rear.local:5001
+omxplayer --live --win 1,1,959,539 http://rear.local:5001

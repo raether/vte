@@ -87,13 +87,13 @@ prepare_host()
 }
 ######################################################
 
-rsync_front()
+rsync_left()
 {
-	write_log_msg "Start Synchronization Files from $front_hostname"
-	rsync --remove-source-files --partial --progress -av "$data_dir/front/" "$home_remote_user@$home_remote_host:data/front"
+	write_log_msg "Start Synchronization Files from $left_hostname"
+	rsync --remove-source-files --partial --progress -av "$data_dir/left/" "$home_remote_user@$home_remote_host:data/left"
 	rsync --remove-source-files --partial -av "$data_dir/gps/" "$home_remote_user@$home_remote_host:data/gps"
 	rsync --remove-source-files --partial -av "$data_dir/radar/" "$home_remote_user@$home_remote_host:data/radar"
-	write_log_msg "Finish Synchronization Files from $front_hostname"
+	write_log_msg "Finish Synchronization Files from $left_hostname"
 }
 
 ######################################################
@@ -108,11 +108,11 @@ rsync_rear()
 
 ######################################################
 
-rsync_left()
+rsync_front()
 {
-	write_log_msg "Start Synchronization Files from $left_hostname"
-	ssh $left_hostname rsync --remove-source-files --partial -av "$data_dir/left/" "$home_remote_user@$home_remote_host:data/left"
-	write_log_msg "Finish Synchronization Files from $left_hostname"
+	write_log_msg "Start Synchronization Files from $front_hostname"
+	ssh $front_hostname rsync --remove-source-files --partial -av "$data_dir/front/" "$home_remote_user@$home_remote_host:data/front"
+	write_log_msg "Finish Synchronization Files from $front_hostname"
 }
 
 
@@ -121,9 +121,9 @@ rsync_left()
 rsync_files()
 (
 	prepare_host
+	rsync_left &
 	rsync_front &
         rsync_rear &
-	rsync_left &
 	#
 	#  Make sure they finish before we exit function
 	#

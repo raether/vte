@@ -69,7 +69,7 @@ time_to_die()
 #
 	write_log_msg "Stopping..."
 
-        write_log_msg "Stopping Front Video Camera"
+        write_log_msg "Stopping Left Video Camera"
 	pkill --signal SIGTERM -f camera.py
 	sleep 1
 
@@ -77,8 +77,8 @@ time_to_die()
 	ssh camera@rear.local pkill --signal SIGTERM -f camera.py
 	sleep 1
 
-        write_log_msg "Stopping Left Video Camera"
-	ssh camera@left.local pkill --signal SIGTERM -f camera.py
+        write_log_msg "Stopping Front Video Camera"
+	ssh camera@front.local pkill --signal SIGTERM -f camera.py
 	sleep 1
 
         write_log_msg "Stopping Rear View"
@@ -182,8 +182,8 @@ sync_time()
 	$main_dir/scripts/gpstime.py
 	write_log_msg "Sync Rear Processor Time"
         ssh camera@rear.local $main_dir/scripts/gpstime.py
-	write_log_msg "Sync Left Processor Time"
-        ssh camera@left.local $main_dir/scripts/gpstime.py
+	write_log_msg "Sync Front Processor Time"
+        ssh camera@front.local $main_dir/scripts/gpstime.py
 }
 ######################################################
 
@@ -245,26 +245,26 @@ monitor_radar()
 
 ######################################################
 
-start_front_camera()
+start_left_camera()
 {
 	if [ ! -z "`pgrep -f camera.py`" ]; then
-		write_log_msg "Front Video Camera Process is already running"	
+		write_log_msg "Left Video Camera Process is already running"	
 	else 
-		write_log_msg "Starting Front Video Camera"
-  		$main_dir/scripts/camera.py --view front --display ul > /dev/null 2>&1 &
+		write_log_msg "Starting Left Video Camera"
+  		$main_dir/scripts/camera.py --view left --hflip --display ur > /dev/null 2>&1 &
 	fi
 }
 
 ######################################################
 
-monitor_front_camera()
+monitor_left_camera()
 {
 	if [ ! -z "`pgrep -f camera.py`" ]; then
-		front_camera_status="OK"
+		left_camera_status="OK"
 	else 
-		front_camera_status="ERROR"
-		write_log_msg "ERROR - Restarting Front Video Camera Process"
-  		$main_dir/scripts/camera.py --view front --display ul > /dev/null 2>&1 &
+		left_camera_status="ERROR"
+		write_log_msg "ERROR - Restarting Left Video Camera Process"
+  		$main_dir/scripts/camera.py --view left --hflip --display ur > /dev/null 2>&1 &
 	fi
 }
 
@@ -295,28 +295,56 @@ monitor_rear_camera()
 
 ######################################################
 
-start_left_camera()
+start_front_camera()
 {
-	if [ ! -z "`ssh left.local pgrep -f camera.py`" ]; then
-		write_log_msg "Left Video Camera Process is already running"	
+	if [ ! -z "`ssh front.local pgrep -f camera.py`" ]; then
+		write_log_msg "Front Video Camera Process is already running"	
 	else 
-		write_log_msg "Starting Left Video Camera"
-  		ssh left.local $main_dir/scripts/camera.py --view left --display full > /dev/null 2>&1 &
+		write_log_msg "Starting Front Video Camera"
+  		ssh front.local $main_dir/scripts/camera.py --view front --display full --stream > /dev/null 2>&1 &
 	fi
 }
 
 ######################################################
 
-monitor_left_camera()
+monitor_front_camera()
 {
-	if [ ! -z "`ssh left.local pgrep -f camera.py`" ]; then
-		left_camera_status="OK"
+	if [ ! -z "`ssh front.local pgrep -f camera.py`" ]; then
+		front_camera_status="OK"
 	else 
-		left_camera_status="ERROR"
-		write_log_msg "ERROR - Restarting Left Video Camera Process"
-  		ssh left.local $main_dir/scripts/camera.py --view left --display full > /dev/null 2>&1 &
+		front_camera_status="ERROR"
+		write_log_msg "ERROR - Restarting Front Video Camera Process"
+  		ssh front.local $main_dir/scripts/camera.py --view front --display full --stream > /dev/null 2>&1 &
 	fi
 }
+
+######################################################
+
+start_frontview()
+{
+	if [ ! -z "`pgrep -f front_view_camera.sh`" ]; then
+		write_log_msg "Front View is already running"	
+	else 
+		write_log_msg "Starting Front View "
+  		$main_dir/scripts/front_view_camera.sh &
+	fi
+}
+
+######################################################
+
+monitor_frontview()
+{
+	if [ ! -z "`pgrep -f front_view_camera.sh`" ]; then
+		frontview_status="OK"
+	else 
+		frontview_status="ERROR"
+		write_log_msg "ERROR - Restarting Front View Process"
+  		$main_dir/scripts/front_view_camera.sh &
+	fi
+}
+
+######################################################
+
 
 ######################################################
 
@@ -397,12 +425,12 @@ monitor_navit()
 
 system_monitor()
 {
-	front_display_temperature="`/opt/vc/bin/vcgencmd measure_temp | awk -F\= '{print $2}'`"
-	front_thermal_temperature="`cat /sys/class/thermal/thermal_zone0/temp`"
-	front_current_speed="`cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`"
-	front_display_speed="`expr $front_current_speed / 1000`Mhz"
-	front_uptime_info="`uptime | cut -c11-80`"
-	front_disk_usage="`df -h $main_dir | grep root | awk '{print $5}'`"
+	left_display_temperature="`/opt/vc/bin/vcgencmd measure_temp | awk -F\= '{print $2}'`"
+	left_thermal_temperature="`cat /sys/class/thermal/thermal_zone0/temp`"
+	left_current_speed="`cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`"
+	left_display_speed="`expr $left_current_speed / 1000`Mhz"
+	left_uptime_info="`uptime | cut -c11-80`"
+	left_disk_usage="`df -h $main_dir | grep root | awk '{print $5}'`"
 
 	rear_display_temperature="`ssh rear.local /opt/vc/bin/vcgencmd measure_temp | awk -F\= '{print $2}'`"
 	rear_thermal_temperature="`ssh rear.local cat /sys/class/thermal/thermal_zone0/temp`"
@@ -411,12 +439,12 @@ system_monitor()
 	rear_uptime_info="`ssh rear.local uptime | cut -c11-80`"
 	rear_disk_usage="`ssh rear.local df -h $main_dir | grep root | awk '{print $5}'`"
 
-	left_display_temperature="`ssh left.local /opt/vc/bin/vcgencmd measure_temp | awk -F\= '{print $2}'`"
-	left_thermal_temperature="`ssh left.local cat /sys/class/thermal/thermal_zone0/temp`"
-	left_current_speed="`ssh left.local cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`"
-	left_display_speed="`expr $left_current_speed / 1000`Mhz"
-	left_uptime_info="`ssh left.local uptime | cut -c11-80`"
-	left_disk_usage="`ssh left.local df -h $main_dir | grep root | awk '{print $5}'`"
+	front_display_temperature="`ssh front.local /opt/vc/bin/vcgencmd measure_temp | awk -F\= '{print $2}'`"
+	front_thermal_temperature="`ssh front.local cat /sys/class/thermal/thermal_zone0/temp`"
+	front_current_speed="`ssh front.local cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`"
+	front_display_speed="`expr $front_current_speed / 1000`Mhz"
+	front_uptime_info="`ssh front.local uptime | cut -c11-80`"
+	front_disk_usage="`ssh front.local df -h $main_dir | grep root | awk '{print $5}'`"
 
 	write_log_msg "FRONT SYSTEM: $front_uptime_info, $front_display_speed, $front_display_temperature"
 	write_log_msg "REAR SYSTEM: $rear_uptime_info, $rear_display_speed, $rear_display_temperature"
@@ -429,7 +457,7 @@ system_monitor()
         #
         #  If temperature is over a threshold, shutdown the machine
         #
-        if [ $front_thermal_temperature -ge $over_temp ]; then
+        if [ $left_thermal_temperature -ge $over_temp ]; then
                 write_log_msg "*** Temperature critical!   Shutting down now ... ***"
                 pkill --signal SIGUSR1 pwr_butt
                 sleep 15
@@ -448,6 +476,7 @@ process_monitor()
 	monitor_front_camera
         monitor_rear_camera
         monitor_left_camera
+        monitor_frontview
         monitor_rearview
         monitor_navit
         monitor_homebase
@@ -455,6 +484,7 @@ process_monitor()
 	write_log_msg "FRONT CAMERA STATUS  = $front_camera_status"
         write_log_msg "REAR CAMERA STATUS   = $rear_camera_status"
         write_log_msg "LEFT CAMERA STATUS   = $left_camera_status"
+        write_log_msg "FRONT VIEW STATUS    = $frontview_status"
         write_log_msg "REAR VIEW STATUS     = $rearview_status"
 	write_log_msg "GPS SYSTEM STATUS    = $gpsd_status"
         write_log_msg "RADAR SYSTEM STATUS  = $radar_status"
@@ -488,8 +518,8 @@ mkdir -p "$log_dir"
 #
 #  Start Log Viewer
 #
-start_logview
-sleep 2
+# start_logview
+# sleep 2
 
 write_log_msg "Video Traffic Enforcement System (v$version) Starting up..."
 write_log_msg "----------------------------------------------------------"
@@ -519,13 +549,14 @@ start_radar
 #
 #  Start Camera Recording Process
 #
+start_left_camera
 start_front_camera
 start_rear_camera
-start_left_camera
 #
 #  Turn on rear view camera viewer
 #
 sleep 5
+start_frontview
 start_rearview
 #
 #  Start Navit Navigation Maps
@@ -534,7 +565,7 @@ start_navit
 #
 #  Start Home Base Automatic File Upload
 #
-start_homebase
+# start_homebase
 #
 #  Disk space status messages
 #

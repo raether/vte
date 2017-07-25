@@ -36,14 +36,12 @@ video_delay = 1
 def gps_annotate():
     
     try:
-        r = requests.get('http://front.local:9001')
+        r = requests.get('http://left.local:9001')
         if r.status_code == 200:
             try:
                 data = json.loads(r.text)
                 lat_float = data["Latitude"]
                 lon_float = data["Longitude"]
-                current_speed = data["Speed"]
-                heading = data["Heading"]
             except Exception as e:
                 print (e)  
         else:
@@ -53,22 +51,44 @@ def gps_annotate():
         gps_text = "NO GPS DATA"
         return gps_text
 
-    gps_text = " VS: {0:<3.0f}".format(float(current_speed)) + \
-               " Head: {0:<3.0f}".format(float(heading)) + \
-               "  Lat: {0:2.6f} ".format(float(lat_float)) + \
-               "Long: {0:2.6f} ".format(float(lon_float))
+    gps_text = " Lat: {0:2.6f} ".format(float(lat_float)) + \
+               " Long: {0:2.6f} ".format(float(lon_float))
 
     return gps_text
+
+def gps_vehicle_speed():
+    
+    try:
+        r = requests.get('http://left.local:9001')
+        if r.status_code == 200:
+            try:
+                data = json.loads(r.text)
+                current_speed = data["Speed"]
+            except Exception as e:
+                print (e)  
+        else:
+            vehicle_speed = "NO GPS DATA"
+            return vehicle_speed
+    except:
+        vehicle_speed = "NO GPS DATA"
+        return vehicle_speed
+
+    vehicle_speed = " VS: {0:<3.0f}".format(float(current_speed))
+
+    return vehicle_speed
 
 def radar_annotate():
 
     try:
-        r = requests.get('http://front.local:9002')
+        r = requests.get('http://left.local:9002')
         if r.status_code == 200:
             data = json.loads(r.text)
-            patrol_speed = str(data["PatrolSpeed"])
-            locked_target = str(data["LockedTarget"])
-            target_speed = str(data["TargetSpeed"])
+            patrol_speed  = str(data["PatrolSpeed"])
+            locked_target = str(data["LockedTargetSpeed"])
+            target_speed  = str(data["TargetSpeed"])
+            antenna       = str(data["Mode"]["antenna"])
+            transmit      = str(data["Mode"]["transmit"])
+            direction     = str(data["Mode"]["direction"])
         else:
             radar_text = "NO RADAR DATA    "
             return radar_text
@@ -78,7 +98,8 @@ def radar_annotate():
 
     radar_text = " T: " + target_speed +  "  " + \
                  " L: " + locked_target + "  " + \
-                 " P: " + patrol_speed +  "   "
+                 " P: " + patrol_speed +  "  " + \
+                 direction
 
     return radar_text
 
@@ -91,15 +112,18 @@ def vte_annotate():
     if (camera_view == "front"):
         gps_text = gps_annotate()
         radar_text = radar_annotate()
-        camera_annotate = " Front Camera  " + current_time + "   " + radar_text + gps_text + " "
+        vehicle_speed = gps_vehicle_speed()
+        camera_annotate = " Front   " + current_time + "   " + gps_text + "\n" + radar_text + vehicle_speed
     elif (camera_view == "rear"):
         gps_text = gps_annotate()
         radar_text = radar_annotate()
-        camera_annotate = " Rear Camera  " + current_time + "   " + radar_text + gps_text + " "
+        vehicle_speed = gps_vehicle_speed()
+        camera_annotate = " Rear   " + current_time + "   " + gps_text + "\n" + radar_text + vehicle_speed
     elif (camera_view == "left"):
         gps_text = gps_annotate()
         radar_text = radar_annotate()
-        camera_annotate = " Left Camera  " + current_time + "   " + radar_text + gps_text + " "
+        vehicle_speed = gps_vehicle_speed()
+        camera_annotate = "\n Left   " + current_time + "   " + gps_text + "\n" + radar_text + vehicle_speed
     else:
         camera_annotate = ""
 
@@ -134,6 +158,8 @@ def start_camera():
     global video_directory
     global display
     global stream_video
+    global set_vflip
+    global set_hflip
     global log
     
 
@@ -145,8 +171,10 @@ def start_camera():
         #
         camera.resolution = (picam_width, picam_height)
         camera.framerate = picam_framerate
-        # camera.vflip = True
-        # camera.hflip = True
+        if (set_vflip):
+            camera.vflip = True
+        if (set_hflip):
+            camera.hflip = True
         camera.annotate_text_size = picam_annotate_size
         camera.annotate_foreground = Color('white')
         # camera.annotate_background = Color('Black')
@@ -223,15 +251,15 @@ def set_camera_properties():
     
     
     if (camera_view == 'front'):
-        picam_annotate_size = 35
+        picam_annotate_size = 17
         picam_text_background = "None"
-        picam_width = 1920
-        picam_height = 1080
-        picam_framerate = 30
+        picam_width = 640
+        picam_height = 360
+        picam_framerate = 24
         picam_quality = 25
         video_directory = data_directory + '/front/'
     elif (camera_view == 'rear'):
-        picam_annotate_size = 11
+        picam_annotate_size = 17
         picam_text_background = "None"
         picam_width = 640
         picam_height = 360
@@ -239,7 +267,7 @@ def set_camera_properties():
         picam_quality = 25
         video_directory = data_directory + '/rear/'
     elif (camera_view == 'left'):
-        picam_annotate_size = 35
+        picam_annotate_size = 50
         picam_text_background = "None"
         picam_width = 1920
         picam_height = 1080
@@ -247,14 +275,14 @@ def set_camera_properties():
         picam_quality = 25
         video_directory = data_directory + '/left/'
     else:
-        camera_view = 'ftont'
-        picam_annotate_size = 35
+        camera_view = 'left'
+        picam_annotate_size = 50
         picam_text_background = "None"
         picam_width = 1920
         picam_height = 1080
         picam_framerate = 30
         picam_quality = 25
-        video_directory = data_directory + '/front/'
+        video_directory = data_directory + '/left/'
     
 #
 #  Main
@@ -273,10 +301,14 @@ def main(argv):
     global display
     global stream_video
     global log
+    global set_vflip
+    global set_hflip
 
     display = 'full'
     stream_video = False
-    camera_view = 'front'
+    camera_view = 'left'
+    set_vflip = False
+    set_hflip = False
     
     try:
       opts, args = getopt.getopt(argv,"hv:d:s",["help", "view=", "display=", "stream", "vflip", "hflip"])
