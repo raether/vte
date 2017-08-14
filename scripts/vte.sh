@@ -345,9 +345,6 @@ monitor_frontview()
 
 ######################################################
 
-
-######################################################
-
 start_rearview()
 {
 	if [ ! -z "`pgrep -f rear_view_camera.sh`" ]; then
@@ -395,6 +392,33 @@ monitor_homebase()
                 $main_dir/scripts/homebase.sh > /dev/null 2>&1 &
 	fi
 }
+
+
+######################################################
+
+start_fan()
+{
+	if [ ! -z "`pgrep -f fan.py`" ]; then
+		write_log_msg "Fan is already running"	
+	else 
+		write_log_msg "Starting Fan Base"
+  		$main_dir/scripts/fan.py > /dev/null 2>&1 &
+	fi
+}
+
+######################################################
+
+monitor_fan()
+{
+	if [ ! -z "`pgrep -f fan.py`" ]; then
+		fan_status="OK"
+	else 
+		fan_status="ERROR"
+		write_log_msg "ERROR - Restarting Fan"
+                $main_dir/scripts/fan.py > /dev/null 2>&1 &
+	fi
+}
+
 
 ######################################################
 
@@ -472,6 +496,7 @@ process_monitor()
 {
 	monitor_gpsd
         monitor_gps
+	monitor_fan
         monitor_radar
 	monitor_front_camera
         monitor_rear_camera
@@ -481,6 +506,7 @@ process_monitor()
         monitor_navit
         monitor_homebase
 
+	write_log_msg "FAN STATUS           = $fan_status"
 	write_log_msg "FRONT CAMERA STATUS  = $front_camera_status"
         write_log_msg "REAR CAMERA STATUS   = $rear_camera_status"
         write_log_msg "LEFT CAMERA STATUS   = $left_camera_status"
@@ -530,13 +556,17 @@ write_log_msg " Data Directory = $data_dir"
 write_log_msg "----------------------------------------------------------"
 
 #
+#  Start Environmental Monitoring Including Fan
+#
+start_fan
+#
 #  Start GPS Daemon Process
 #
 start_gpsd
 #
 #  Synchronize Time Across Servers
 #
-sync_time
+# sync_time
 #
 #  Start GPS Logger
 #
