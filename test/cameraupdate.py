@@ -53,16 +53,25 @@ class VTECamera(PiCamera, GPS, Radar, FileManager, Property):
         
         self.camera.awb_mode            = self.property.cameraAwb
 
-    def runCamera(self):
+    def loopCamera(self):
 
-        self.file_manager.writeFile()
+			self.file_manager.writeFile()
 
-        self.outputDisplay()
+			self.outputDisplay()
 
-        self.camera.start_recording(self.file_manager.videoFile, self.property.Quality, self.property.Format)
+			self.camera.start_recording(self.file_manager.videoFile, self.property.Quality, self.property.Format)
 
-        if(self.property.streamVideo): 
-            self.camera.start_recording(self.property.Vlc.stdin, self.property.Format, self.property.splitterPort)
+			if(self.property.streamVideo): 
+				self.camera.start_recording(self.property.Vlc.stdin, self.property.Format, self.property.splitterPort)
+			
+			while not(self.file_manager.rotateCheck()):
+                self.doAnnotate()
+                self.waitRecording()
+
+			if(self.property.streamVideo):
+				self.stopRecording()
+
+            sys.exit(0)
 
     def outputDisplay(self):
 
@@ -435,19 +444,9 @@ def main(argv):
     time.sleep(vte.property.videoDelay) #Camera delay before starting upo
 
     vte.startCamera() #Initialize camera
-
-    while(True):
-
-            vte.runCamera()
-
-            while not(vte.file_manager.rotateCheck()):
-                vte.doAnnotate()
-                vte.waitRecording()
-
-            if(vte.property.streamVideo):
-                vte.stopRecording()
-
-            sys.exit(0)
+	
+	while(true):
+		vte.loopCamera()
                          
 if __name__ == "__main__":
 
