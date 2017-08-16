@@ -424,28 +424,28 @@ class Property(GPS, Radar):
                          
 def main(argv):
 
-    camera = VTECamera() #Create instance
+    vte = VTECamera() #Create instance
 
-    camera.property.propertyArgs = argv #Our arg inputs are added to propertyArgs attribute for later use
+    vte.property.propertyArgs = argv #Our arg inputs are added to propertyArgs attribute for later use
 
-    camera.property.propertyInput() #All arg inputs are now set as object attributes for camera use
+    vte.property.propertyInput() #All arg inputs are now set as object attributes for camera use
 
-    camera.file_manager.log = open(camera.file_manager.logFileOut, "a", 1) #Open file for wr iting
+    vte.file_manager.log = open(vte.file_manager.logFileOut, "a", 1) #Open file for wr iting
 
-    time.sleep(camera.property.videoDelay) #Camera delay before starting upo
+    time.sleep(vte.property.videoDelay) #Camera delay before starting upo
 
-    camera.camera.startCamera() #Initialize camera
+    vte.startCamera() #Initialize camera
 
     while(True):
 
-            camera.camera.runCamera()
+            vte.runCamera()
 
-            while not(camera.file_manager.rotateCheck()):
-                camera.camera.doAnnotate()
-                camera.camera.wait_recording
+            while not(vte.file_manager.rotateCheck()):
+                vte.doAnnotate()
+                vte.waitRecording()
 
-            if(camera.property.streamVideo):
-                camera.camera.stop_recording(camera.property.splitterPort)
+            if(vte.property.streamVideo):
+                vte.stopRecording()
 
             sys.exit(0)
                          
