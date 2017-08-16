@@ -55,23 +55,23 @@ class VTECamera(PiCamera, GPS, Radar, FileManager, Property):
 
     def loopCamera(self):
 
-			self.file_manager.writeFile()
+        self.file_manager.writeFile()
 
-			self.outputDisplay()
+        self.outputDisplay()
 
-			self.camera.start_recording(self.file_manager.videoFile, self.property.Quality, self.property.Format)
+        self.camera.start_recording(self.file_manager.videoFile, self.property.Quality, self.property.Format)
 
-			if(self.property.streamVideo): 
-				self.camera.start_recording(self.property.Vlc.stdin, self.property.Format, self.property.splitterPort)
-			
-			while not(self.file_manager.rotateCheck()):
-                self.doAnnotate()
-                self.waitRecording()
+        if(self.property.streamVideo): 
+        self.camera.start_recording(self.property.Vlc.stdin, self.property.Format, self.property.splitterPort)
+            
+        while not(self.file_manager.rotateCheck()):
+                            self.doAnnotate()
+                            self.waitRecording()
 
-			if(self.property.streamVideo):
-				self.stopRecording()
+        if(self.property.streamVideo):
+                self.stopRecording()
 
-            sys.exit(0)
+        sys.exit(0)
 
     def outputDisplay(self):
 
@@ -312,7 +312,7 @@ class Property(GPS, Radar):
         self.setVFlip        = False     #If true, flips over y-axis
         self.setHFlip        = False     #If true, flips over x-axis
         self.splitterPort    = 2         #Port from splitter
-        self.Vlc           = None      #VLC manager
+        self.Vlc             = None      #VLC manager
         self.Width           = 1920      #Width of window
         self.Height          = 1080      #Height of window
         self.cameraView      = 'left'    #Which camera we view
@@ -326,7 +326,7 @@ class Property(GPS, Radar):
         self.propertyArgs    = None      #Property args from command line
         self.cameraAwb       = 'horizon' #Auto white balance, default is horizon for some reason
         self.Quality         = 25        #Quality of recording
-        self.cameraAnnotate = ""
+        self.cameraAnnotate  = ""
 
     def propertyInput(self):
 
@@ -444,9 +444,9 @@ def main(argv):
     time.sleep(vte.property.videoDelay) #Camera delay before starting upo
 
     vte.startCamera() #Initialize camera
-	
-	while(true):
-		vte.loopCamera()
+    
+    while(true):
+        vte.loopCamera()
                          
 if __name__ == "__main__":
 
