@@ -176,8 +176,8 @@ def start_camera():
         if (set_hflip):
             camera.hflip = True
         camera.annotate_text_size = picam_annotate_size
-        camera.annotate_foreground = Color('white')
-        # camera.annotate_background = Color('Black')
+        # camera.annotate_foreground = Color('white')
+        camera.annotate_background = Color('Black')
         # camera.annotate_frame_num = True
         camera.awb_mode = 'horizon'
 
@@ -252,7 +252,7 @@ def set_camera_properties():
     
     if (camera_view == 'front'):
         picam_annotate_size = 17
-        picam_text_background = "None"
+        picam_text_background = "none"
         picam_width = 640
         picam_height = 360
         picam_framerate = 24
@@ -260,7 +260,7 @@ def set_camera_properties():
         video_directory = data_directory + '/front/'
     elif (camera_view == 'rear'):
         picam_annotate_size = 17
-        picam_text_background = "None"
+        picam_text_background = "none"
         picam_width = 640
         picam_height = 360
         picam_framerate = 24
@@ -268,7 +268,7 @@ def set_camera_properties():
         video_directory = data_directory + '/rear/'
     elif (camera_view == 'left'):
         picam_annotate_size = 50
-        picam_text_background = "None"
+        picam_text_background = "none"
         picam_width = 1920
         picam_height = 1080
         picam_framerate = 30
@@ -277,7 +277,7 @@ def set_camera_properties():
     else:
         camera_view = 'left'
         picam_annotate_size = 50
-        picam_text_background = "None"
+        picam_text_background = "none"
         picam_width = 1920
         picam_height = 1080
         picam_framerate = 30

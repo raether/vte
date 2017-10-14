@@ -251,7 +251,7 @@ start_left_camera()
 		write_log_msg "Left Video Camera Process is already running"	
 	else 
 		write_log_msg "Starting Left Video Camera"
-  		$main_dir/scripts/camera.py --view left --hflip --display ur > /dev/null 2>&1 &
+  		$main_dir/scripts/camera.py --view left --vflip --hflip --display ur > /dev/null 2>&1 &
 	fi
 }
 
@@ -264,7 +264,7 @@ monitor_left_camera()
 	else 
 		left_camera_status="ERROR"
 		write_log_msg "ERROR - Restarting Left Video Camera Process"
-  		$main_dir/scripts/camera.py --view left --hflip --display ur > /dev/null 2>&1 &
+  		$main_dir/scripts/camera.py --view left --vflip --hflip --display ur > /dev/null 2>&1 &
 	fi
 }
 
@@ -301,7 +301,7 @@ start_front_camera()
 		write_log_msg "Front Video Camera Process is already running"	
 	else 
 		write_log_msg "Starting Front Video Camera"
-  		ssh front.local $main_dir/scripts/camera.py --view front --display full --stream > /dev/null 2>&1 &
+  		ssh front.local $main_dir/scripts/camera.py --vflip --hflip --view front --display full --stream > /dev/null 2>&1 &
 	fi
 }
 
@@ -314,7 +314,7 @@ monitor_front_camera()
 	else 
 		front_camera_status="ERROR"
 		write_log_msg "ERROR - Restarting Front Video Camera Process"
-  		ssh front.local $main_dir/scripts/camera.py --view front --display full --stream > /dev/null 2>&1 &
+  		ssh front.local $main_dir/scripts/camera.py --vflip --hflip  --view front --display full --stream > /dev/null 2>&1 &
 	fi
 }
 
