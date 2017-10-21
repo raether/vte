@@ -6,4 +6,4 @@
 @xset -dpms
 @xset s noblank
 
-@lxterminal -e "/home/camera/vte/scripts/vte.sh"
+@lxterminal --command /home/camera/vte/scripts/vte.sh

@@ -31,10 +31,12 @@
 		[D][D]DMM.ss[S][S]... N/S [D][D]DMM.ss[S][S]... E/W 
 		[-][D]D.d[d]... [-][D][D]D.d[d]... 
 		[-]0xX [-]0xX -->
-	<navit center="4808 N 1134 E" zoom="8" tracking="1" orientation="-1" recent_dest="250">
+	<navit center="4808 N 1134 E" autozoom_active="1" tracking="1" orientation="0" recent_dest="250" imperial="1">
 		<!-- Use one of gtk_drawing_area, qt_qpainter or sdl. 
 		     On windows systems, use win32 -->
-		<graphics type="gtk_drawing_area"/>
+
+		<graphics type="gtk_drawing_area" x="961" y="541" w="960" h="540" />
+
 		<!-- The following line let you select which graphical user interface you'd like to use.
 		Options include internal (optimized for touch screen devices), gtk (useful for desktop computers).
 		If you don't like the internal gui, set enabled=yes for the following tag and enabled=no for the gui internal tag -->
@@ -149,7 +151,7 @@ Waypoint</text></img>
 		<!-- for a debug log -->
 		<log enabled="no" type="textfile_debug" data="debug_%Y%m%d-%i.txt" flush_size="1000" flush_time="30"/>
 		<!-- osd items allow to position display and control items directly on top of the map: -->
-		<osd enabled="yes" type="compass"/>
+		<osd enabled="no" type="compass"/>
 		<osd enabled="no" type="eta"/> 
 		<osd enabled="no" type="navigation_distance_to_target"/> 
 		<osd enabled="no" type="navigation"/> 
@@ -741,13 +743,13 @@ Waypoint</text></img>
 		</mapset>
 
 		<!-- If you dont want to use the sample map, either set enabled="no" in the next line or remove the xml file from the maps directory -->
-		<mapset enabled="no">
+	        <!-- mapset enabled="no">
 			<xi:include href="$NAVIT_SHAREDIR/maps/*.xml"/>
-		</mapset>
+		</mapset -->
 
 		<!-- Mapset template for openstreetmaps -->
 		<mapset enabled="yes">
-			<map type="binfile" enabled="yes" data="/home/camera/.navit/illinois.bin"/>
+			<map type="binfile" enabled="yes" data="/home/camera/vte/maps/illinois.bin"/>
 		</mapset>
 
 		<!-- Mapset template for garmin maps -->
