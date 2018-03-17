@@ -262,6 +262,8 @@ elapsedTimeLow      = 0
 elapsedTimeHigh     = 0
 lockedPatrolSpeed   = 0
 antennaConnections  = AntennaConnections()
+lastTransmitMode    = False
+lastLockedTargetSpeed = 0
 
 #  TODO:
 #  RADAR_DEVICE is a hard coded string.   Code should be enhanced to find the
@@ -288,6 +290,7 @@ print "Reading Serial Port..."
 
 log = open(logfile_out, "a", 1) # non blocking
 radarlog = vteLog(radarlog_directory,'radar','csv')
+violationlog = vteLog(radarlog_directory,'violations','csv')
 
 #
 #  Read bytes off of serial port
@@ -317,7 +320,7 @@ while True:
         #
         if (byte_value == MESSAGE_LENGTH):
 
-          current_timestamp = datetime.now().strftime('%Y-%m-%d %H;%M:%S.%f')[:-3]
+          current_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
 
           for i in range(1, MESSAGE_LENGTH):
               
@@ -373,12 +376,56 @@ while True:
             if (i == 12):
                 antennaConnections.field = int_value            
 
-          radarlog.write_log(str(current_timestamp) + ', '+ \
-                             str(targetSpeed) + ', ' + \
-                             str(patrolSpeed) + ', ' + \
-                             str(lockedTargetSpeed) + ', ' + \
-                             str(mode) + ', ' + \
-                             str(errors) + '\n')
+        radarlog.write_log(str(current_timestamp) + ', '+ \
+                         str(targetSpeed) + ', ' + \
+                         str(patrolSpeed) + ', ' + \
+                         str(lockedTargetSpeed) + ', ' + \
+                         str(mode.field) + ', ' + \
+                         str(errors.field) + '\n')
+
+        #
+        #  Detect Violations
+        #     mode.tansmit:
+        #          True  = Transmit is on Hold
+        #          False = Transmit is Active
+        #
+        if ((mode.transmit == False) and (lastTransmitMode == True)):
+            #
+            #  Detect that we went from Hold to Active
+            #
+            violationlog.write_log(str(current_timestamp) + ', '+ \
+                         str(targetSpeed) + ', ' + \
+                         str(patrolSpeed) + ', ' + \
+                         str(lockedTargetSpeed) + ', ' + \
+                         str(mode.field) + ', ' + \
+                         str(errors.field) + ', ' + \
+                         'transmit' + '\n')
+            
+        if ((mode.transmit == True) and (lastTransmitMode == False)):
+            #
+            #  Detect that we went from Active to Hold
+            #
+            violationlog.write_log(str(current_timestamp) + ', '+ \
+                         str(targetSpeed) + ', ' + \
+                         str(patrolSpeed) + ', ' + \
+                         str(lockedTargetSpeed) + ', ' + \
+                         str(mode.field) + ', ' + \
+                         str(errors.field) + ', ' + \
+                         'hold' + '\n')
+        if ((lockedTargetSpeed != lastLockedTargetSpeed) and (lockedTargetSpeed > 5)):
+            #
+            #  Detect that we went from Active to Hold
+            #
+            violationlog.write_log(str(current_timestamp) + ', '+ \
+                         str(targetSpeed) + ', ' + \
+                         str(patrolSpeed) + ', ' + \
+                         str(lockedTargetSpeed) + ', ' + \
+                         str(mode.field) + ', ' + \
+                         str(errors.field) + ', ' + \
+                         'lock' + '\n')
+
+        lastTransmitMode = mode.transmit
+        lastLockedTargetSpeed = lockedTargetSpeed
 
 #
 #  Handle exit with ctrl+c

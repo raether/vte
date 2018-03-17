@@ -5,10 +5,13 @@ import sys
 import time
 from gps import *
 
+GPS_HOST = "control.local"
+GPS_PORT = 2947
+
 print 'Attempting to access GPS time...'
 
 try:
-	gpsd = gps(host="left.local", port=2947, mode=WATCH_ENABLE)
+	gpsd = gps(host=GPS_HOST, port=GPS_POST, mode=WATCH_ENABLE)
 except:
 	print 'No GPS connection present. TIME NOT SET.'
 	sys.exit()

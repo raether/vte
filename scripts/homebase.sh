@@ -93,6 +93,7 @@ rsync_left()
 	rsync --remove-source-files --partial --progress -av "$data_dir/left/" "$home_remote_user@$home_remote_host:data/left"
 	rsync --remove-source-files --partial -av "$data_dir/gps/" "$home_remote_user@$home_remote_host:data/gps"
 	rsync --remove-source-files --partial -av "$data_dir/radar/" "$home_remote_user@$home_remote_host:data/radar"
+	rsync --remove-source-files --partial -av "$data_dir/audio/" "$home_remote_user@$home_remote_host:data/audio"
 	write_log_msg "Finish Synchronization Files from $left_hostname"
 }
 

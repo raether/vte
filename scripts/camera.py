@@ -1,343 +1,488 @@
 #!/usr/bin/python3
-#
 
-from __future__ import print_function
-from datetime import datetime, timedelta, timezone
+# import datetime
 
 import picamera
-from PIL import Image
-from picamera import Color
 import datetime as dt
 
 import sys
 import getopt
 import signal
 import os.path
-
+import argparse
+import textwrap
 import socket
 import select
 import time
 import json
 import requests
+import logging
 
 import subprocess
 
-main_directory = "/home/camera/vte"
-log_directory = main_directory + "/logs"
-data_directory = main_directory + "/data"
-logfile_out = log_directory + "/status.log"
-
-video_delay = 1
-    
-#################################################################################################################
 #
-#  These functions defines the text that is overlayed on the video
-
-def gps_annotate():
-    
-    try:
-        r = requests.get('http://left.local:9001')
-        if r.status_code == 200:
-            try:
-                data = json.loads(r.text)
-                lat_float = data["Latitude"]
-                lon_float = data["Longitude"]
-            except Exception as e:
-                print (e)  
-        else:
-            gps_text = "NO GPS DATA"
-            return gps_text
-    except:
-        gps_text = "NO GPS DATA"
-        return gps_text
-
-    gps_text = " Lat: {0:2.6f} ".format(float(lat_float)) + \
-               " Long: {0:2.6f} ".format(float(lon_float))
-
-    return gps_text
-
-def gps_vehicle_speed():
-    
-    try:
-        r = requests.get('http://left.local:9001')
-        if r.status_code == 200:
-            try:
-                data = json.loads(r.text)
-                current_speed = data["Speed"]
-            except Exception as e:
-                print (e)  
-        else:
-            vehicle_speed = "NO GPS DATA"
-            return vehicle_speed
-    except:
-        vehicle_speed = "NO GPS DATA"
-        return vehicle_speed
-
-    vehicle_speed = " VS: {0:<3.0f}".format(float(current_speed))
-
-    return vehicle_speed
-
-def radar_annotate():
-
-    try:
-        r = requests.get('http://left.local:9002')
-        if r.status_code == 200:
-            data = json.loads(r.text)
-            patrol_speed  = str(data["PatrolSpeed"])
-            locked_target = str(data["LockedTargetSpeed"])
-            target_speed  = str(data["TargetSpeed"])
-            antenna       = str(data["Mode"]["antenna"])
-            transmit      = str(data["Mode"]["transmit"])
-            direction     = str(data["Mode"]["direction"])
-        else:
-            radar_text = "NO RADAR DATA    "
-            return radar_text
-    except:
-        radar_text = "NO RADAR DATA    "
-        return radar_text
-
-    radar_text = " T: " + target_speed +  "  " + \
-                 " L: " + locked_target + "  " + \
-                 " P: " + patrol_speed +  "  " + \
-                 direction
-
-    return radar_text
-
-def vte_annotate():
-
-    global camera_view
-
-    current_time = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-    if (camera_view == "front"):
-        gps_text = gps_annotate()
-        radar_text = radar_annotate()
-        vehicle_speed = gps_vehicle_speed()
-        camera_annotate = " Front   " + current_time + "   " + gps_text + "\n" + radar_text + vehicle_speed
-    elif (camera_view == "rear"):
-        gps_text = gps_annotate()
-        radar_text = radar_annotate()
-        vehicle_speed = gps_vehicle_speed()
-        camera_annotate = " Rear   " + current_time + "   " + gps_text + "\n" + radar_text + vehicle_speed
-    elif (camera_view == "left"):
-        gps_text = gps_annotate()
-        radar_text = radar_annotate()
-        vehicle_speed = gps_vehicle_speed()
-        camera_annotate = "\n Left   " + current_time + "   " + gps_text + "\n" + radar_text + vehicle_speed
-    else:
-        camera_annotate = ""
-
-    return camera_annotate
-
+#  Video Traffic Enforcement Camera Class
 #
-#  This function should be rewritten to track last_rotate as a property on the object.
-#  It should not have to be passed into the function.
-#
-def ready_to_rotate(last_rotate) :
-    current_minutes = dt.datetime.now().strftime('%M')
-    if (current_minutes == '00') or \
-       (current_minutes == '15') or \
-       (current_minutes == '30') or \
-       (current_minutes == '45'):
-        if (current_minutes != last_rotate):
+
+class VTECamera:
+
+    #
+    #  Initialize File Locations
+    #
+    mainDirectory = "/home/camera/vte"
+    logDirectory  = mainDirectory + "/logs"
+    dataDirectory = mainDirectory + "/data"
+    logFileName   = logDirectory + "/status.log"
+
+    gpsURL        = "http://control.local:9001"
+    radarURL      = "http://control.local:9002"
+
+    videoDelay       = 1    # Delay before starting camera
+    waitTime         = 0.2  # Real-time break during video recording
+    fileTimeBoundary = 5    # Minute boundary to roll over video files
+
+
+    def __init__(self, args):
+
+        logging.debug ("Initializing VTE Camera Object")
+
+
+        #
+        #  Initialize General Object Parameters
+        #
+        self.cameraView     = str(args.view)
+        self.display        = str(args.display)
+
+        if (self.display.lower() == 'ul'):     # Upper Left Display
+            self.fullscreen = False
+            self.window = (0, 0, 960, 540)
+
+        elif (self.display.lower() == 'ur'):   # Upper Right Display
+            self.fullscreen = False
+            self.window     = (960, 0, 960, 540)
+            
+        elif (self.display.lower() == 'll'):   # Lower Left Display
+            self.fullscreen = False
+            self.window     = (0, 540, 960, 540)
+
+        elif (self.display.lower() == 'lr'):   # Lower Right Display
+            self.fullscreen = False
+            self.window     = (960, 540, 960, 540)
+
+        else:                                  #  Full Screen Mode
+            self.fullscreen = True
+
+        #
+        #  Initialize default camera settings
+        #  
+        self.resHeight      = args.height
+        self.resWidth       = args.width
+        self.hflip          = args.hflip
+        self.vflip          = args.vflip
+        self.framerate      = args.framerate
+        self.quality        = args.quality
+        self.exposure       = args.exposure
+        self.awb            = args.awb
+        self.videoStabilize = args.vstab
+        self.videoFormat    = 'h264'
+        
+        self.annotationSize = args.annotation
+        self.textForeground = args.foreground
+        self.textBackground = args.background
+        
+        #
+        #  Initialize Video Streaming
+        #
+        self.streamVideo  = args.stream
+
+        logging.debug(vars(self))
+        logging.debug("Finished initialization")        
+    
+    #
+    #   This class does all of the HTTP Request handling and
+    #       provides the object with json data for both gps
+    #       and radar information in their respective ports
+    #
+
+    def gpsGet(self):
+        
+        #
+        #   HTTP Getter for gps json data
+        #
+        
+        try:
+            #   Request data from GPS URL
+            r = requests.get(VTECamera.gpsURL)
+            #   Check status code if success request
+            if r.status_code == 200:
+                #   Try opening json file we received
+                try:
+                    self.gpsData = json.loads(r.text)
+                    
+                except Exception as e:
+                    logging.error ("Error Reading JSON File from GPS: %s", e)   
+            #   If we got a bad HTTP request        
+            else:
+                logging.error("Bad GPS HTTP Reqest. Error Code: " + r.status_code)
+                
+        except Exception as e:
+            logging.error ("GPS Exception: %s", e)
+
+    #
+    #   This class does all of the gps data handling
+    #       as well as formatting for display use
+    #
+
+    def gpsAnnotate(self):
+        
+        #
+        #   Sets gps data based on data we received from http request
+        #
+        #   Here are a list of variables that we assign:
+        #       latFloat: Our latitude coordinates
+        #       lonFloat: Our longitude coordinates
+        #       currentSpeed: Our current speed, read from the car, included as gps data
+        #
+
+        #
+        #  Send http request to get GPS Data
+        #
+        self.gpsGet()
+        
+        try:
+        
+            self.latFloat     = self.gpsData["Latitude"]
+            self.lonFloat     = self.gpsData["Longitude"] #Assign object attributes from parsed data
+            self.currentSpeed = self.gpsData["Speed"]
+
+            gpsText        = " Lat: {0:2.6f} ".format(float(self.latFloat)) + \
+                             " Long: {0:2.6f} ".format(float(self.lonFloat)) 
+        
+            vehicleSpeed   = " VS: {0:<3.0f}".format(float(self.currentSpeed))
+            
+            return (gpsText, vehicleSpeed)
+            
+        except Exception as e:
+            logging.error ("GPS Exception: %s", e)
+            gpsText      = "NO GPS DATA"
+            vehicleSpeed = " VS: Unknown"
+            return (gpsText, vehicleSpeed)
+        
+    def radarGet(self):
+        
+        #
+        #   HTTP Getter for radar json data
+        #
+        
+        try:
+            #   Request data from radar URL
+            r = requests.get(VTECamera.radarURL)
+                #   Check status code if success request
+            if r.status_code == 200:
+                #   Try opening json file we received
+                try: 
+                    self.radarData = json.loads(r.text)
+                        
+                except Exception as e:
+                    logging.error ("Error Reading JSON File from Radar: %s", e)    
+            else:
+                #
+                #  Bad HTTP Request
+                #
+                logging.error("Bad Radar HTTP Reqest. Error Code: " + r.status_code)
+                    
+        except Exception as e:
+            logging.error ("Radar Exception: %s", e)
+
+    def radarAnnotate(self):
+    
+        #
+        #   We combine all of this data into specific formats to be used
+        #   The formatted data is placed in the following attributes:
+        #       radarText: Formatted radar information based on all atributes in setRadar
+        #
+        
+        self.radarGet() #Call getter function to load radar information
+        try:
+        
+            self.patrolSpeed  = str(self.radarData["PatrolSpeed"]) 
+            self.lockedTarget = str(self.radarData["LockedTargetSpeed"]) #Assign respective object attributes based on parsed info
+            self.targetSpeed  = str(self.radarData["TargetSpeed"])
+            self.Antenna      = str(self.radarData["Mode"]["antenna"])
+            self.Transmit     = str(self.radarData["Mode"]["transmit"])
+            self.Direction    = str(self.radarData["Mode"]["direction"])
+        
+            radarText = " T: " + self.targetSpeed +  "  " + \
+                        " L: " + self.lockedTarget + "  " + \
+                        " P: " + self.patrolSpeed +  "  " + \
+                         self.Direction
+
+            return(radarText)
+
+        except Exception as e:
+            logging.error ("Radar Exception: %s", e)
+            return("NO RADAR DATA")
+
+    def annotateVideo(self):
+
+        currentTime = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        gpsText, vehicleSpeed = self.gpsAnnotate()
+##        radarText             = self.radarAnnotate()
+        radarText = "NO RADAR DATA"
+        
+        cameraAnnotate = "  " + self.cameraView.title() + "  " + \
+                              currentTime + "  " + \
+                              gpsText + "\n" + \
+                              radarText + \
+                              vehicleSpeed
+
+        #
+        #  Annotate Video
+        #
+        self.camera.annotate_text = cameraAnnotate
+        
+    
+    def rotateCheck(self):
+        
+        self.currentMinutes = int(dt.datetime.now().minute)
+        
+            #   Checks if we are at a multiple of 15 minutes and if our current minutes don't
+            #       equal our last rotation
+            #   Make sure self.currentMinutes is an int
+            
+        if(not(self.currentMinutes % VTECamera.fileTimeBoundary)  and  self.currentMinutes != self.lastRotate):
+            logging.debug (vars(self))
+            logging.debug ("Check for file rotation.  Rotate File")
             return True
+        
         else:
             return False
-    else:
-        return False
-                 
-def start_camera():
 
-    global camera_view
-    global picam_annotate_size
-    global picam_text_background
-    global picam_width
-    global picam_height
-    global picam_framerate
-    global picam_quality 
-    global video_directory
-    global display
-    global stream_video
-    global set_vflip
-    global set_hflip
-    global log
-    
-
-
-    with picamera.PiCamera() as camera:
-
-        #
-        #  set camera properties
-        #
-        camera.resolution = (picam_width, picam_height)
-        camera.framerate = picam_framerate
-        if (set_vflip):
-            camera.vflip = True
-        if (set_hflip):
-            camera.hflip = True
-        camera.annotate_text_size = picam_annotate_size
-        # camera.annotate_foreground = Color('white')
-        camera.annotate_background = Color('Black')
-        # camera.annotate_frame_num = True
-        camera.awb_mode = 'horizon'
-
-        cmdline = ['cvlc','-q','stream:///dev/stdin','--sout','#standard{access=http,mux=ts,dst=:5001}',':demux=h264','-' ]
-        #
-        #  Alternative cmdline for sending RTP stream
-        #  'rtp{sdp=rtsp://:5001/video}','--sout-rtp-caching=200'
-        #
-        if (stream_video):
-            myvlc = subprocess.Popen(cmdline, stdin=subprocess.PIPE)
-
-        #
-        #  Main loop for recording video
-        #
-        while True:
         
-            video_file = video_directory + camera_view + "_" + dt.datetime.now().strftime('%Y%m%d_%H%M.h264')
-            last_rotate = dt.datetime.now().strftime('%M')
-            log_data = dt.datetime.now().strftime('%T [CAMERA]: ') + "Started recording " + video_file + "\n"
-            log.write(log_data)
-            
-            #
-            #  Set the preview screen location on the HDMI Display
-            #
+    def setVideoFile(self):
 
-            if (display == 'full'):   # Full Screen Display
-                camera.start_preview(fullscreen=True)               
-            elif (display == 'ul'):   # Upper Left Display
-                camera.start_preview(fullscreen=False, window = (0, 0, 960, 539))
-            elif (display == 'ur'):   # Upper Right Display
-                camera.start_preview(fullscreen=False, window = (960, 0, 960, 540))
-            elif (display == 'll'):   # Lower Left Display
-                camera.start_preview(fullscreen=False, window = (0, 540, 960, 540))
-            elif (display == 'lr'):   # Lower Right Display
-                camera.start_preview(fullscreen=False, window = (960, 540, 960, 540))
-            else:
-                camera.start_preview(fullscreen=True)
-            
-            #
-            #  Start recording the video based on the camera properties
-            #
-            camera.start_recording(video_file, quality=picam_quality, format='h264')
-            #
-            #  Start a h.264 stream to the http port
-            #
-            if (stream_video):
-                camera.start_recording(myvlc.stdin, format='h264', splitter_port=2)
+        logging.debug ("Setting the Video File Name")
+
+        #
+        #  Make the video directory if it does not exist
+        #
+        self.videoDirectory = self.dataDirectory + '/' + self.cameraView.lower() + '/'
+        if not os.path.exists(self.videoDirectory):
+            os.makedirs(self.videoDirectory)
+    
+        self.videoFile      = self.videoDirectory + self.cameraView + "_" + dt.datetime.now().strftime('%Y%m%d_%H%M%S.h264')
+        self.lastRotate     = int(dt.datetime.now().strftime('%M'))  #Set last rotation
         
-            start = dt.datetime.now()
-            #
-            #  Record video only for the picam_time duration.  Then start a new file.
-            #
-            while not ready_to_rotate(last_rotate):   
-                camera.annotate_text = vte_annotate()
-                camera.wait_recording(0.2)
 
-            camera.stop_recording()
-            if (stream_video):
-                camera.stop_recording(splitter_port=2)
+        logging.debug ("Done Setting the Video File Name")
+    
 
-def set_camera_properties():
-    
-    global camera_view
-    global picam_annotate_size
-    global picam_text_background
-    global picam_width
-    global picam_height
-    global picam_framerate
-    global picam_quality 
-    global video_directory
-    
-    
-    if (camera_view == 'front'):
-        picam_annotate_size = 17
-        picam_text_background = "none"
-        picam_width = 640
-        picam_height = 360
-        picam_framerate = 24
-        picam_quality = 25
-        video_directory = data_directory + '/front/'
-    elif (camera_view == 'rear'):
-        picam_annotate_size = 17
-        picam_text_background = "none"
-        picam_width = 640
-        picam_height = 360
-        picam_framerate = 24
-        picam_quality = 25
-        video_directory = data_directory + '/rear/'
-    elif (camera_view == 'left'):
-        picam_annotate_size = 50
-        picam_text_background = "none"
-        picam_width = 1920
-        picam_height = 1080
-        picam_framerate = 30
-        picam_quality = 25
-        video_directory = data_directory + '/left/'
-    else:
-        camera_view = 'left'
-        picam_annotate_size = 50
-        picam_text_background = "none"
-        picam_width = 1920
-        picam_height = 1080
-        picam_framerate = 30
-        picam_quality = 25
-        video_directory = data_directory + '/left/'
-    
-#
+
+
+    #This class handles all functions from the original PiCamera class, like displaying and running
+        
+    def outputDisplay(self):
+
+        logging.debug ("Video Output to Display")
+
+        #
+        #  Display Video Preview on Screen
+        #
+        if (self.fullscreen):
+            self.camera.start_preview(fullscreen = self.fullscreen)
+        else:
+            self.camera.start_preview(fullscreen = self.fullscreen, window = self.window)
+
+        logging.debug ("Done Video Output to Display")
+
+    def startCamera(self):
+
+        logging.debug ("Starting camera")
+        
+        try:
+            self.camera = picamera.PiCamera()
+        except picamera.PiCameraError:
+            logging.critical ("Cannot connect to camera")
+            exit(1)
+
+        logging.info ("Camera Board Initialized")
+        #
+        #  Initialize variables for camera object
+        #
+        self.camera.resolution          = (self.resWidth, self.resHeight)
+        self.camera.framerate           = self.framerate
+        self.camera.vflip               = self.vflip
+        self.camera.hflip               = self.hflip
+        self.camera.annotate_text_size  = self.annotationSize
+        self.camera.annotate_foreground = picamera.Color(self.textForeground)
+        self.camera.annotate_background = picamera.Color(self.textBackground)
+        self.camera.awb_mode            = self.awb
+
+        logging.debug ("Done starting camera")
+
+    def splitCamera(self):
+
+        logging.debug ("Split camera")
+
+        #
+        #  Start Recording Video to a File
+        #
+        self.camera.split_recording(self.videoFile)
+        logging.info ("Started recording " + self.videoFile)
+
+        #
+        #  Stream Video to a http port
+        #
+        if(self.streamVideo):
+            self.camera.split_recording(self.myvlc.stdin, splitter_port=2)
+            logging.info ("Start Streaming Video to HTTP Port")
+
+        logging.debug ("Done split camera")
+
+    def runCamera(self):
+
+        logging.debug ("Running camera")
+
+        #
+        #  Start Recording Video to a File
+        #
+        self.camera.start_recording(self.videoFile, quality = self.quality, format = self.videoFormat)
+        logging.info ("Started recording " + self.videoFile)
+
+        #
+        #  Stream Video to a http port
+        #
+        if(self.streamVideo):
+            logging.info ("Start Streaming Video to HTTP Port")
+            
+            cmdline = ['cvlc','-q','stream:///dev/stdin','--sout','#standard{access=http,mux=ts,dst=:5001}',':demux=h264','-' ]
+            self.myvlc = subprocess.Popen(cmdline, stdin=subprocess.PIPE)
+            self.camera.start_recording(self.myvlc.stdin, format='h264', splitter_port=2, resize=(384, 216))
+
+        logging.debug ("Done running camera")
+
+    def stopCamera(self):
+
+        logging.debug ("Stop camera")
+
+        #
+        #  Start Recording Video to a File
+        #
+        self.camera.stop_recording()
+        logging.info ("Stopping video recording")
+
+        #
+        #  Stream Video to a http port
+        #
+        if(self.streamVideo):
+            self.camera.stop_recording(splitter_port=2)
+            logging.info ("Stopping video streaming")
+
+        logging.debug ("Done stop camera")
+
+#########################################
 #  Main
+#########################################
+def main(args):
+
+#
+#  Basic steps for running the camera.
+#
+#   1.  Declare the camera object and set properties
+#   2.  Configure Camera
+#   3.  Check display and preview accordingly
+#   4.  Start recording to a file.
+#   5.  Send video to stream.
+#   6.  Annotate video with timestamp, radar speed info, and GPS info
+#   7.  Roll over files on time increment (example:  every 15 minutes)
 #
 
-def main(argv):
+    logging.debug ("Entering main function")
 
-    global camera_view
-    global picam_annotate_size
-    global picam_text_background
-    global picam_width
-    global picam_height
-    global picam_framerate
-    global picam_quality 
-    global video_directory
-    global display
-    global stream_video
-    global log
-    global set_vflip
-    global set_hflip
+    camera = VTECamera(args)        # Create VTE Camera Object
 
-    display = 'full'
-    stream_video = False
-    camera_view = 'left'
-    set_vflip = False
-    set_hflip = False
-    
+    time.sleep(VTECamera.videoDelay)
+
     try:
-      opts, args = getopt.getopt(argv,"hv:d:s",["help", "view=", "display=", "stream", "vflip", "hflip"])
-    except getopt.GetoptError:
-      print ('camera.py -v <camera_view> -d <display> -s')
-      sys.exit(2)
-      
-    for opt, arg in opts:
-      if opt == '-h':
-         print ('camera.py -v <camera_view> -d <display> -s')
-         sys.exit()
-      elif opt in ("-v", "--view"):
-         camera_view = arg
-      elif opt in ("-d", "--display"):
-         display = arg
-      elif opt in ("-s", "--stream"):
-         stream_video = True
-      elif opt in ("--vflip"):
-         set_vflip = True
-      elif opt in ("--hflip"):
-         set_hflip = True
+        camera.startCamera()
+        camera.outputDisplay()
+        camera.setVideoFile()
+        camera.runCamera()
 
-    log = open(logfile_out, "a", 1) # non blocking
-    time.sleep(video_delay)
+        while(True):    
+            while not (camera.rotateCheck()):
+                camera.annotateVideo()
+                camera.camera.wait_recording(VTECamera.waitTime)
+                    
+            camera.setVideoFile()
+            camera.splitCamera()
 
-    set_camera_properties()
-    start_camera()
-
-    sys.exit(0)
+    #
+    #  Graceful shutdown of camera
+    #
+    except (KeyboardInterrupt, SystemExit):
+        logging.debug("Exiting main function")
+        camera.stopCamera()
+        sys.exit(0)
 
 if __name__ == "__main__":
-   main(sys.argv[1:])
+
+    #
+    #  Parse Command Line Options
+    #
+
+    
+    parser = argparse.ArgumentParser(prog='camera.py',
+                 formatter_class=argparse.RawDescriptionHelpFormatter,
+                 description='Video Taffic Enforcement Camera - Version 0.1',
+                 epilog=textwrap.dedent('''\
+                    Notes
+                    -------------------------------------------------------------------------------------------------------
+                    Exposure mode options :
+                    off,auto,night,nightpreview,backlight,spotlight,sports,snow,beach,verylong,fixedfps,antishake,fireworks
+
+                    AWB mode options :"
+                    off,auto,sunlight,cloudy,shade,tungsten,fluorescent,incandescent,flash,horizon
+                    -------------------------------------------------------------------------------------------------------
+                    '''))
+    
+    parser.add_argument('view', choices=['front', 'left', 'rear'], help="Camera View")
+    parser.add_argument('-v', '--debug', action='store_true', help="Turn on debug mode for logging")
+    parser.add_argument('-x', '--width', default=1920, help="Set video width <size>. Default 1920")
+    parser.add_argument('-y', '--height', default=1080, help="Set video height <size>. Default 1080")
+    parser.add_argument('-fps', '--framerate', default=30, help="Set video frame rate per second. Default 30") 
+    parser.add_argument('-hf', '--hflip', action='store_true', help="Set Horizontal Flip")
+    parser.add_argument('-vf', '--vflip', action='store_true', help="Set Vertical Flip")
+    parser.add_argument('-q', '--quality', default=25, choices=range(10,40), metavar="[10-40]", help="Video Quality for Encoder (10-40)")
+    parser.add_argument('--vstab', action='store_true', help="Turn on Video Stabilization")
+    parser.add_argument('-exp', '--exposure', default='auto', help="Set exposure mode (see Notes)")
+    parser.add_argument('-awb', '--awb', default='horizon', help="Set AWB mode (see Notes)")
+    parser.add_argument('-d', '--display', choices=['full', 'ul', 'ur', 'lr', 'll'], help="Preview Display (default = Full Screen)")
+    parser.add_argument('-s', '--stream', action='store_true', help="Stream Video to HTTP Port")
+    parser.add_argument('-as', '--annotation', default=50, choices=range(6,160), metavar="[6-160]", help="Text Annotation Size")
+    parser.add_argument('-af', '--foreground', default='white', help="Color for Annotation Text")
+    parser.add_argument('-ab', '--background', default='black', help="Color for Background of Annotation Text")
+
+    args = parser.parse_args()
+    
+    #
+    #  Configure Logging
+    #
+    logging.getLogger('requests.packages.urllib3.connectionpool').setLevel(logging.ERROR)
+    if (args.debug):
+        logging.basicConfig(filename=VTECamera.logFileName,
+                            format='Camera: %(asctime)-15s: %(levelname)-5s: %(message)s',
+                            level=logging.DEBUG)
+    else:
+        logging.basicConfig(filename=VTECamera.logFileName,
+                            format='Camera: %(asctime)-15s: %(levelname)-5s: %(message)s',
+                            level=logging.INFO)        
+                        
+    logging.info ("Starting %s camera", args.view)
+    logging.debug (vars(args))
+    
+    #
+    #  Start main with command-line arguments
+    #
+    main(args)

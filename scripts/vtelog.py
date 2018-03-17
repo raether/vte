@@ -51,6 +51,8 @@ class vteLog:
             self.last_rotate        = 45
             self.last_rotate_string = '45'
 
+        self.current_file = self.get_path() + self.get_name()
+
     def ready_to_rotate(self) :
                                                          
         current_min = int(datetime.datetime.now().strftime('%M'))
@@ -70,7 +72,6 @@ class vteLog:
 
         if self.ready_to_rotate():
             self.rotate()
-            self.current_file = self.get_path() + self.get_name()
             
         self.open_file = open(self.current_file,'a',1) # non blocking
         self.open_file.write(message)
@@ -83,9 +84,9 @@ def main():
     i = 1
     while True:
         mylog.write_log("Hello World " + str(i) + '\n')
+        print ("Current File : ", mylog.get_current_file())
         i = i+1
         time.sleep(10)
-
         
 if __name__ == "__main__":
     main()

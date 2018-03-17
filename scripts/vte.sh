@@ -19,6 +19,7 @@
   log_file="status.log"
   status_out="$log_dir/$log_file"
 
+  control_host_name="control.local"
   front_host_name="front.local"
   back_host_name="back.local"
   left_host_name="left.local"
@@ -70,38 +71,29 @@ time_to_die()
 	write_log_msg "Stopping..."
 
         write_log_msg "Stopping Left Video Camera"
-	pkill --signal SIGTERM -f camera.py
-	sleep 1
+	ssh camera@left.local pkill --signal SIGTERM -f camera.py
 
         write_log_msg "Stopping Rear Video Camera"
 	ssh camera@rear.local pkill --signal SIGTERM -f camera.py
-	sleep 1
 
         write_log_msg "Stopping Front Video Camera"
 	ssh camera@front.local pkill --signal SIGTERM -f camera.py
-	sleep 1
+
+        write_log_msg "Stopping Audio"
+        pkill --signal SIGTERM -f audio.py
 
         write_log_msg "Stopping Rear View"
 	pkill --signal SIGTERM -f rear_view_camera.sh
-	sleep 1
 
         write_log_msg "Stopping Navigation System"
 	pkill --signal SIGTERM -f navit 
-	sleep 1
 
         write_log_msg "Stopping Radar"
 	pkill --signal SIGTERM -f radar.py
-	sleep 1
 
         write_log_msg "Stopping GPS Logger"
 	pkill --signal SIGTERM -f gps_logger.py
-	sleep 1
 
-	if [ "$audio_enabled" = "yes" ]; then
-		kill -15 `cat /tmp/audio.pid` > /dev/null 2>&1
-		pkill --signal SIGINT arecord
-		sleep 1
-	fi
 	if [ "$pico_enabled" = "yes" ]; then
 		pkill --signal SIGTERM -f pico.sh
 		sleep 1
@@ -176,17 +168,6 @@ monitor_gpsd()
 
 ######################################################
 
-sync_time()
-{
-	write_log_msg "Sync Front Processor Time"
-	$main_dir/scripts/gpstime.py
-	write_log_msg "Sync Rear Processor Time"
-        ssh camera@rear.local $main_dir/scripts/gpstime.py
-	write_log_msg "Sync Front Processor Time"
-        ssh camera@front.local $main_dir/scripts/gpstime.py
-}
-######################################################
-
 start_gps()
 {
 	if [ "$GPS_enabled" = "yes" ]; then
@@ -247,26 +228,28 @@ monitor_radar()
 
 start_left_camera()
 {
-	if [ ! -z "`pgrep -f camera.py`" ]; then
-		write_log_msg "Left Video Camera Process is already running"	
-	else 
-		write_log_msg "Starting Left Video Camera"
-  		$main_dir/scripts/camera.py --view left --vflip --hflip --display ur > /dev/null 2>&1 &
-	fi
+        if [ ! -z "`ssh left.local pgrep -f camera.py`" ]; then
+                write_log_msg "Left Video Camera Process is already running"
+        else
+                write_log_msg "Starting Left Video Camera"
+                ssh left.local $main_dir/scripts/camera.py --left rear --display full --stream > /dev/null 2>&1 &
+        fi
 }
+
 
 ######################################################
 
 monitor_left_camera()
 {
-	if [ ! -z "`pgrep -f camera.py`" ]; then
-		left_camera_status="OK"
-	else 
-		left_camera_status="ERROR"
-		write_log_msg "ERROR - Restarting Left Video Camera Process"
-  		$main_dir/scripts/camera.py --view left --vflip --hflip --display ur > /dev/null 2>&1 &
-	fi
+        if [ ! -z "`ssh left.local pgrep -f camera.py`" ]; then
+                left_camera_status="OK"
+        else
+                left_camera_status="ERROR"
+                write_log_msg "ERROR - Restarting Left Video Camera Process"
+                ssh left.local $main_dir/scripts/camera.py --view left --display full --stream > /dev/null 2>&1 &
+        fi
 }
+
 
 ######################################################
 
@@ -317,6 +300,32 @@ monitor_front_camera()
   		ssh front.local $main_dir/scripts/camera.py --vflip --hflip  --view front --display full --stream > /dev/null 2>&1 &
 	fi
 }
+
+######################################################
+
+start_leftview()
+{
+        if [ ! -z "`pgrep -f left_view_camera.sh`" ]; then
+                write_log_msg "Left View is already running"
+        else
+                write_log_msg "Starting Left View "
+                $main_dir/scripts/left_view_camera.sh &
+        fi
+}
+
+######################################################
+
+monitor_leftview()
+{
+        if [ ! -z "`pgrep -f left_view_camera.sh`" ]; then
+                leftview_status="OK"
+        else
+                leftview_status="ERROR"
+                write_log_msg "ERROR - Restarting Left View Process"
+                $main_dir/scripts/left_view_camera.sh &
+        fi
+}
+
 
 ######################################################
 
@@ -419,6 +428,32 @@ monitor_fan()
 	fi
 }
 
+######################################################
+
+start_audio()
+{
+        if [ ! -z "`pgrep -f audio.py`" ]; then
+                write_log_msg "Audio Recording System is already running"
+        else
+                write_log_msg "Start Audio Recording System"
+                $main_dir/scripts/btconnect.sh
+                $main_dir/scripts/audio.py > /dev/null 2>&1 &
+        fi
+}
+
+######################################################
+
+monitor_audio()
+{
+        if [ ! -z "`pgrep -f audio.py`" ]; then
+                audio_status="OK"
+        else
+                audio_status="ERROR"
+                write_log_msg "ERROR - Restarting Audio System"
+                $main_dir/scripts/btconnect.sh
+                $main_dir/scripts/audio.py  > /dev/null 2>&1 &
+        fi
+}
 
 ######################################################
 
@@ -449,31 +484,40 @@ monitor_navit()
 
 system_monitor()
 {
-	left_display_temperature="`/opt/vc/bin/vcgencmd measure_temp | awk -F\= '{print $2}'`"
-	left_thermal_temperature="`cat /sys/class/thermal/thermal_zone0/temp`"
-	left_current_speed="`cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`"
-	left_display_speed="`expr $left_current_speed / 1000`Mhz"
-	left_uptime_info="`uptime | cut -c11-80`"
-	left_disk_usage="`df -h $main_dir | grep root | awk '{print $5}'`"
+	control_display_temperature="`/opt/vc/bin/vcgencmd measure_temp | awk -F\= '{print $2}'`"
+	control_thermal_temperature="`cat /sys/class/thermal/thermal_zone0/temp`"
+	control_current_speed="`cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`"
+	control_display_speed="`expr $left_current_speed / 1000`Mhz"
+	control_uptime_info="`uptime | cut -c11-80`"
+	control_disk_usage="`df -h $data_dir | grep mmcblk0p3 | awk '{print $5}'`"
+
+	left_display_temperature="`ssh rear.local /opt/vc/bin/vcgencmd measure_temp | awk -F\= '{print $2}'`"
+	left_thermal_temperature="`ssh rear.local cat /sys/class/thermal/thermal_zone0/temp`"
+	left_current_speed="`ssh rear.local cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`"
+	left_display_speed="`expr $rear_current_speed / 1000`Mhz"
+	left_uptime_info="`ssh rear.local uptime | cut -c11-80`"
+	left_disk_usage="`ssh rear.local df -h $main_dir | grep mmcblk0p3 | awk '{print $5}'`"
 
 	rear_display_temperature="`ssh rear.local /opt/vc/bin/vcgencmd measure_temp | awk -F\= '{print $2}'`"
 	rear_thermal_temperature="`ssh rear.local cat /sys/class/thermal/thermal_zone0/temp`"
 	rear_current_speed="`ssh rear.local cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`"
 	rear_display_speed="`expr $rear_current_speed / 1000`Mhz"
 	rear_uptime_info="`ssh rear.local uptime | cut -c11-80`"
-	rear_disk_usage="`ssh rear.local df -h $main_dir | grep root | awk '{print $5}'`"
+	rear_disk_usage="`ssh rear.local df -h $main_dir | grep mmcblk0p3 | awk '{print $5}'`"
 
 	front_display_temperature="`ssh front.local /opt/vc/bin/vcgencmd measure_temp | awk -F\= '{print $2}'`"
 	front_thermal_temperature="`ssh front.local cat /sys/class/thermal/thermal_zone0/temp`"
 	front_current_speed="`ssh front.local cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`"
 	front_display_speed="`expr $front_current_speed / 1000`Mhz"
 	front_uptime_info="`ssh front.local uptime | cut -c11-80`"
-	front_disk_usage="`ssh front.local df -h $main_dir | grep root | awk '{print $5}'`"
+	front_disk_usage="`ssh front.local df -h $main_dir | grep mmcblk0p3 | awk '{print $5}'`"
 
+	write_log_msg "CONTROL SYSTEM: $front_uptime_info, $front_display_speed, $front_display_temperature"
 	write_log_msg "FRONT SYSTEM: $front_uptime_info, $front_display_speed, $front_display_temperature"
 	write_log_msg "REAR SYSTEM: $rear_uptime_info, $rear_display_speed, $rear_display_temperature"
 	write_log_msg "LEFT SYSTEM: $left_uptime_info, $left_display_speed, $left_display_temperature"
 
+	write_log_msg "CONTROL SYSTEM: Disk Usage is $front_disk_usage%"
 	write_log_msg "FRONT SYSTEM: Disk Usage is $front_disk_usage%"
 	write_log_msg "REAR SYSTEM : Disk Usage is $rear_disk_usage%"
 	write_log_msg "LEFT SYSTEM : Disk Usage is $left_disk_usage%"
@@ -496,26 +540,29 @@ process_monitor()
 {
 	monitor_gpsd
         monitor_gps
-	monitor_fan
+#	monitor_fan
         monitor_radar
 	monitor_front_camera
         monitor_rear_camera
         monitor_left_camera
-        monitor_frontview
-        monitor_rearview
-        monitor_navit
-        monitor_homebase
+#        monitor_frontview
+#        monitor_rearview
+#        monitor_audio
+#        monitor_navit
+#        monitor_homebase
 
-	write_log_msg "FAN STATUS           = $fan_status"
+#	write_log_msg "FAN STATUS           = $fan_status"
 	write_log_msg "FRONT CAMERA STATUS  = $front_camera_status"
         write_log_msg "REAR CAMERA STATUS   = $rear_camera_status"
         write_log_msg "LEFT CAMERA STATUS   = $left_camera_status"
-        write_log_msg "FRONT VIEW STATUS    = $frontview_status"
-        write_log_msg "REAR VIEW STATUS     = $rearview_status"
+#        write_log_msg "LEFT VIEW STATUS     = $leftview_status"
+#        write_log_msg "FRONT VIEW STATUS    = $frontview_status"
+#        write_log_msg "REAR VIEW STATUS     = $rearview_status"
 	write_log_msg "GPS SYSTEM STATUS    = $gpsd_status"
         write_log_msg "RADAR SYSTEM STATUS  = $radar_status"
-        write_log_msg "NAVIGATION STATUS    = $navit_status"
-        write_log_msg "HOMEBASE STATUS      = $homebase_status"
+#        write_log_msg "AUDIO SYSTEM STATUS  = $audio_status"
+#        write_log_msg "NAVIGATION STATUS    = $navit_status"
+#        write_log_msg "HOMEBASE STATUS      = $homebase_status"
 }
 
 #######################################################################################
@@ -547,6 +594,8 @@ mkdir -p "$log_dir"
 # start_logview
 # sleep 2
 
+clear
+echo "Video Traffic Enforcement System (v$version) Starting up..."
 write_log_msg "Video Traffic Enforcement System (v$version) Starting up..."
 write_log_msg "----------------------------------------------------------"
 write_log_msg " Main Directory = $main_dir"
@@ -558,7 +607,8 @@ write_log_msg "----------------------------------------------------------"
 #
 #  Start Environmental Monitoring Including Fan
 #
-start_fan
+# start_fan
+# 
 #
 #  Start GPS Daemon Process
 #
@@ -575,7 +625,8 @@ start_gps
 #  Start Radar Logger
 #
 start_radar
-
+#
+sleep 10
 #
 #  Start Camera Recording Process
 #
@@ -583,15 +634,19 @@ start_left_camera
 start_front_camera
 start_rear_camera
 #
+#  Start Audio System
+#
+# start_audio
+#
 #  Turn on rear view camera viewer
 #
-sleep 5
-start_frontview
-start_rearview
+# start_leftview
+# start_frontview
+# start_rearview
 #
 #  Start Navit Navigation Maps
 #
-start_navit
+# start_navit
 #
 #  Start Home Base Automatic File Upload
 #
@@ -599,7 +654,7 @@ start_navit
 #
 #  Disk space status messages
 #
-write_log_msg "Disk space threshold is set to $root_limit%% for $main_dir"
+# write_log_msg "Disk space threshold is set to $root_limit%% for $main_dir"
 
 #
 #  Main loop running software checks the following
@@ -628,6 +683,6 @@ do
 	#
 	#   Wait 60 seconds and check everything again
 	#
-	sleep 60
+	sleep 30
 done
 exit
