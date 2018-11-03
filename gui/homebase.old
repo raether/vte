@@ -1,0 +1,441 @@
+#!/usr/bin/python3
+
+import sys
+import signal
+import os
+import socket
+import subprocess
+import datetime as dt
+import time
+import argparse
+import textwrap
+import logging
+import threading
+import json
+import re
+
+from logging.handlers import TimedRotatingFileHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import urlparse, parse_qsl, parse_qs
+
+rsyncStatus = {}
+rsyncStatus["vault"] = {}
+rsyncStatus["vault"]["status"] = ""
+rsyncStatus["vault"]["info"] = ""
+rsyncStatus["control"] = {}
+rsyncStatus["control"]["status"] = ""
+rsyncStatus["control"]["info"] = ""
+rsyncStatus["control"]["progress"] = 0
+rsyncStatus["left"] = {}
+rsyncStatus["left"]["status"] = ""
+rsyncStatus["left"]["info"] = ""
+rsyncStatus["left"]["progress"] = 0
+rsyncStatus["front"] = {}
+rsyncStatus["front"]["status"] = ""
+rsyncStatus["front"]["info"] = ""
+rsyncStatus["front"]["progress"] = 0
+rsyncStatus["rear"] = {}
+rsyncStatus["rear"]["status"] = ""
+rsyncStatus["rear"]["info"] = ""
+rsyncStatus["rear"]["progress"] = 0
+
+
+class homebaseHandler(BaseHTTPRequestHandler):
+
+    global rsyncStatus
+
+    #
+    #  Function for setting HTTP headers
+    #
+    def _set_headers(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+	
+    #
+    #  HTTP Handler for GET requests
+    #
+    
+    def do_GET(self):
+
+        logger.debug ("HTTP GET Request for Homebase Data " + self.path)
+        
+        self.send_response(200)
+        self.send_header('Content-type','application/json')
+        self.end_headers()
+
+        #
+        # Send the response in JSON format
+        #
+    
+        message = json.dumps(rsyncStatus)
+
+        logger.debug (message) 
+        self.wfile.write(message.encode('utf-8'))
+        
+        return
+    
+    def do_HEAD(self):
+        self._set_headers()
+        
+    def do_POST(self):
+        
+        logger.debug ("HTTP POST Request for Homebase Data " + self.path)
+
+        length = int(self.headers.get('Content-Length',0))
+        postData = self.rfile.read(length)
+        payloadData = json.loads(postData.decode('utf-8'))
+
+        self._set_headers()
+        return
+
+    #
+    # Absolutely essential!  This ensures that socket resuse is setup BEFORE
+    # it is bound.  Will avoid a TIME_WAIT issue
+    #
+    def server_bind(self):
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.bind(self.server_address)
+
+    def log_message(self, format, *args):
+        return
+
+class homebase (threading.Thread):
+    
+    #
+    #  Initialize File Locations
+    #
+    mainDirectory    = "/home/camera/vte"
+    logDirectory     = mainDirectory + "/logs"
+    logFileName      = logDirectory + "/status"
+
+    PORT_NUM     = 9004
+
+    homebaseURL   = "http://control.local:9004"
+
+    waitTime      = 10.0  # Real-time break in seconds for main loop
+    timeBoundary  = 5     # Minute boundary to roll over information files
+    
+    
+def fetchRsyncStats(hostname, fromDir, toDir):
+
+    myHostname = socket.gethostname()
+
+    rsyncCmd = ['rsync', '-az', '--stats', '--dry-run',
+                '/home/camera/vte/' + fromDir + '/',
+                'pi@vault.local:/home/pi/vte/data/car101/' + toDir]
+
+    if (myHostname != hostname):
+        cmd = ['ssh', hostname + '.local'] + rsyncCmd
+    else:
+        cmd = rsyncCmd
+
+    logger.debug (hostname + ' : ' + str(cmd))
+    
+    p = subprocess.Popen(cmd, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    metrics, err = p.communicate()
+
+    try:
+        mn = re.findall(r'Number of files: (\d+)', str(metrics))
+        totalFiles = int(mn[0])
+        
+        mn = re.findall(r'Total file size: (?<!,)\b(\d{1,3}(?:,\d{3})*)\b(?!,)', str(metrics))
+        totalBytes = int(mn[0].replace(',', ''))
+        
+        return (totalFiles, totalBytes)
+    
+    except:
+        return (0,0)
+
+def killRsync (hostname):
+    logger.info ("Killing rsync for " + hostname)
+    
+    rsyncCmd   = ["pkill", "--signal", "15", "-f", "rsync"]
+
+    myHostname = socket.gethostname()
+
+    if (myHostname != hostname):
+        cmd = ['ssh', hostname + '.local'] + rsyncCmd
+    else:
+        cmd = rsyncCmd
+    
+    p = subprocess.Popen(cmd, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    
+    returnCode = p.poll()
+    return returnCode
+        
+def doRsync(hostname, fromDir, toDir):
+    global rsyncStatus
+    
+    logger.info (hostname + " : Performing rsync")
+
+    (totalFiles, totalBytes) = fetchRsyncStats(hostname, fromDir, toDir)
+
+    totalFilesSent = 0
+    totalBytesSent = 0
+
+    logger.info (hostname + " : " + "Transfering " + str(totalFiles) + " File(s) - Total Bytes " + str(totalBytes))
+    
+    myHostname = socket.gethostname()
+
+    rsyncCmd = ['rsync', '--remove-source-files', '--partial', '--progress', '-avz',
+                '/home/camera/vte/' + fromDir + '/',
+                'pi@vault.local:/home/pi/vte/data/car101/' + toDir] 
+
+    if (myHostname != hostname):
+        cmd = ['ssh', hostname + '.local'] + rsyncCmd
+    else:
+        cmd = rsyncCmd
+
+    logger.debug (hostname + ' : ' + str(cmd))
+    
+    p = subprocess.Popen(cmd, shell=False,
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                         universal_newlines=True )
+
+    while True:
+        output = p.stdout.readline().strip()
+        if output == '' and p.poll() is not None:
+            break
+        if output:
+            #
+            #  Process Output of rsync
+            #
+            fieldOutput = str(output).split()
+            #
+            #  Completed Sending File
+            #
+            if 'to-chk' in output:
+                numBytesSent  = int(fieldOutput[0].replace(',', ''))
+                totalBytesSent = totalBytesSent + numBytesSent
+                rsyncStatus[hostname]["progress"] = int(100*((totalBytesSent + numBytesSent)/totalBytes))
+                m = re.findall(r'to-chk=(\d+)/(\d+)', output)
+                totalFilesSent = int(m[0][1]) - int(m[0][0])
+                logger.info (hostname + " : " + str(totalFilesSent) + " Files Sent")
+            #
+            #  Start sending Video File
+            #
+            elif '.h264' in output:
+                fileName = fieldOutput[0]
+                rsyncStatus[hostname]["status"] = "Transfering Video File " + fileName
+                logger.info (hostname + " : " + "Transfering Video File " + fileName)
+            #
+            #  Start Sending Audio File
+            #
+            elif '.wav' in output:
+                fileName = fieldOutput[0]
+                rsyncStatus[hostname]["status"] = "Transfering Audio File " + fileName
+                logger.info (hostname + " : " + "Transfering Audio File " + fileName)
+            #
+            #  Start Sending Data File (.csv File)
+            #
+            elif ".csv" in output:
+                fileName = fieldOutput[0]
+                rsyncStatus[hostname]["status"] = "Transfering Data File " + fileName
+                logger.info (hostname + " : " + "Transfering Data File " + fileName)
+            #
+            #  Progress Marker with bytes sent, percentage sent, speed of xfer, and ETA for completion
+            #
+            elif re.search(r"(?<!,)\b(\d{1,3}(?:,\d{3})*)\b(?!,)",fieldOutput[0]):
+                numBytesSent  = int(fieldOutput[0].replace(',', ''))
+                percentSent   = fieldOutput[1]
+                transferSpeed = fieldOutput[2]
+                etaSend       = fieldOutput[3]
+                rsyncStatus[hostname]["info"] = str(numBytesSent) + " Bytes Sent " + percentSent + \
+                                                " - Estimated Remaining Time for File Transfer " + etaSend
+                rsyncStatus[hostname]["progress"] = int(100*((totalBytesSent + numBytesSent)/totalBytes))
+                logger.debug (hostname + " : " + "Bytes Sent " + str(numBytesSent) + " " + percentSent)
+
+    rsyncStatus[hostname]["status"] = ""
+    rsyncStatus[hostname]["info"] = ""
+    returnCode = p.poll()
+    return returnCode
+
+def rsyncHandler(hostname):
+
+    global rsyncStatus
+
+    logger.debug ("rsyncHandler for " + hostname)
+    
+    while True:
+
+        if (rsyncStatus["vault"]["status"] == "Ready"):
+            #
+            #  Calculate total number of file and total number of bytes that need transfer
+            #
+            rsyncStatus[hostname]["status"] = "Ready for Transfer"
+
+            #
+            #  Transfer Files
+            #
+
+            if (hostname == 'control'):
+                rsyncStatus[hostname]["status"] = "Transfering Audio Files"
+                doRsync(hostname, 'data/audio', 'audio')
+                rsyncStatus[hostname]["status"] = "Transfering Radar Files"
+                doRsync(hostname, 'data/radar', 'radar')
+                rsyncStatus[hostname]["status"] = "Transfering GPS Files"
+                doRsync(hostname, 'data/gps'  , 'gps')
+            else:
+                rsyncStatus[hostname]["status"] = "Transfering Video Files"
+                doRsync(hostname, 'data/' + hostname, hostname)
+
+            rsyncStatus[hostname]["status"]   = "Transfer Completed"
+            rsyncStatus[hostname]["progress"] = 100
+            
+            time.sleep(140)  # Wait 140 seconds until process is repeated
+                
+        time.sleep(10)  # Check every 10 seconds for vault to be ready.
+
+def createRemoteDirectory(hostName, userid, carid, directoryName):
+
+    path = "/home/pi/vte/data/" + carid + "/" + directoryName
+    cmd = ['ssh'] + [userid + '@' + hostName] + ['mkdir'] + ['-p'] + [path]
+    logger.info ("Creating Directory on Host " + path)
+
+    p = subprocess.Popen(cmd, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    p.wait()
+      
+def pingVault():
+    logger.debug ("Pinging vault.local")
+
+    cmd = ["ping", "-c", "2", "-w", "2", "vault.local"]
+
+    p = subprocess.Popen(cmd, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p.wait()
+
+    if (p.returncode == 0):
+        logger.info ("Ping vault.local is reachable")
+        return True
+    else:
+        logger.info ("Ping vault.local is not reachable")
+        return False
+ 
+#########################################
+#  Main
+#########################################
+def main(args):
+
+    global rsyncStatus
+
+    logger.debug ("Entering main function")
+
+    try:
+
+        #
+        #  Start up  HTTP Server to handle requests for Homebase information
+        #
+        logger.debug("Starting HTTP Server Process")
+        server = HTTPServer(('',homebase.PORT_NUM), homebaseHandler)
+        t=threading.Thread(target=server.serve_forever)
+        t.daemon = True
+        t.start()
+
+        logger.info("Created http server on port " + str(homebase.PORT_NUM))
+        logger.info("Starting to read Homebase information")
+
+        tControl = threading.Thread(target=rsyncHandler, args=["control"], daemon=True)
+        tLeft    = threading.Thread(target=rsyncHandler, args=["left"], daemon=True)
+        tFront   = threading.Thread(target=rsyncHandler, args=["front"], daemon=True)
+        tRear    = threading.Thread(target=rsyncHandler, args=["rear"], daemon=True)
+        
+        tControl.start()
+        tLeft.start()
+        tFront.start()
+        tRear.start()
+
+        prepareHost = False
+
+        while True:
+            #
+            #  Main Loop for Program
+            #
+            rsyncStatus["vault"]["status"] = "Pinging"
+            if pingVault():
+                rsyncStatus["vault"]["status"] = "Reachable"
+
+                #
+                #  Only do this one time in the beginning when the host is available
+                #
+                if (prepareHost == False):
+                    logger.info ("Preparing Host for File Synchronization")
+
+                    rsyncStatus["vault"]["info"] = "Preparing for File Synchronization"
+
+                    createRemoteDirectory("vault.local", "pi", "car101", "front")
+                    createRemoteDirectory("vault.local", "pi", "car101", "rear")
+                    createRemoteDirectory("vault.local", "pi", "car101", "left")
+                    createRemoteDirectory("vault.local", "pi", "car101", "gps")
+                    createRemoteDirectory("vault.local", "pi", "car101", "radar")
+                    createRemoteDirectory("vault.local", "pi", "car101", "audio")
+
+                    #
+                    #  Mark it completed, so it does not occur again
+                    #
+                    prepareHost = True
+                    rsyncStatus["vault"]["status"] = "Ready"
+                    rsyncStatus["vault"]["info"] = "Vault Ready for File Synchronization"
+            else:
+                rsyncStatus["vault"]["status"] = "Unreachable"
+                     
+            time.sleep(30)
+
+    except (KeyboardInterrupt, SystemExit):
+        logger.debug ("Exiting main function")
+        logger.debug ("Stopping Homebase HTTP Server")
+        server.shutdown()
+        logger.debug ("Closing Homebase Server Port")
+        server.server_close()
+        logger.debug("Stopping existing rsync processes")
+        killRsync('control')
+        killRsync('left')
+        killRsync('front')
+        killRsync('rear')
+        logger.info ("Stopping Homebase")
+        sys.exit(0)
+
+if __name__ == "__main__":
+
+    #
+    #  Parse Command Line Options
+    #
+
+    
+    parser = argparse.ArgumentParser(prog='homebase.py',
+                 formatter_class=argparse.RawDescriptionHelpFormatter,
+                 description='Video Taffic Enforcement - Homebase - Version 0.1',
+                 epilog=textwrap.dedent('''\
+                    Notes
+                    -------------------------------------------------------------------------------------
+                    VTE Homebase File Synchronization
+                    -------------------------------------------------------------------------------------
+                    '''))
+
+    parser.add_argument('-v', '--debug', action='store_true', help="Turn on debug mode for logging")
+    args = parser.parse_args()
+    
+    #
+    #  Configure Logging
+    #
+    FORMAT  = 'HOMEBASE: %(asctime)-15s: %(levelname)-5s: %(message)s'
+    logger  = logging.getLogger('status')
+    handler = logging.handlers.TimedRotatingFileHandler(homebase.logFileName, when='midnight')
+    
+    handler.setFormatter(logging.Formatter(FORMAT))
+
+    if (args.debug):
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
+
+    logger.addHandler(handler)
+                        
+    logger.info ("Starting Homebase")
+    logger.debug (vars(args))
+    
+    #
+    #  Start main with command-line arguments
+    #
+    main(args)

@@ -1,0 +1,654 @@
+
+#:import stopTouchApp kivy.base.stopTouchApp
+
+ScreenManager:
+    id: 'manager'
+    MenuScreen:
+        name: 'menu'
+    FrontScreen:
+        name: 'front'
+    LeftScreen:
+        name: 'left'
+    RearScreen:
+        name: 'rear'
+    QuadScreen:
+        name: 'quad'
+    FrontQScreen:
+        name: 'frontquad'
+    LeftQScreen:
+        name: 'leftquad'
+    RearQScreen:
+        name: 'rearquad'
+    SettingsScreen:
+        name: 'settings'
+    UploadScreen:
+        name: 'upload'
+    RadarScreen:
+        name: 'radar'
+    EventSummaryScreen:
+        name: 'eventsummary'
+    SystemStatusScreen:
+        name: 'systemstatus'
+    ShutdownScreen:
+        name: 'shutdown'
+        
+
+<Separator@Widget>:
+    canvas:
+        Color:
+            rgba: 1, 1, 1, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+<HSeparator@Separator>:
+    size_hint_y: None
+    height: dp(2)
+
+<VSeparator@Separator>:
+    size_hint_x: None
+    width: dp(2)
+        
+<MenuScreen>:
+    BoxLayout:
+        padding: 20
+        spacing: 10
+        orientation: 'vertical'
+
+        TopBar:
+            size_hint_y: 0.1
+
+        BoxLayout:
+            size_hint_y: 1.1
+            spacing: 10
+            orientation: 'horizontal'
+
+            Label:
+                size_hint_x: 0.2
+                text_size: self.size
+                font_size: '20sp'
+                valign: 'top'
+                halign: 'center'
+                text: '\nCamera Views'
+                canvas.after:
+                    Color:
+                        rgb: 1, 1, 1, 0.75
+                    Line:
+                        points: self.x, self.y, self.right, self.y
+                    Line:
+                        points: self.x, self.top, self.right, self.top
+                    Line:
+                        points: self.x, self.y, self.x, self.top
+                    Line:
+                        points: self.right, self.y, self.right, self.top
+
+            ButtonPanel:
+                size_hint_x: 0.8
+
+        StatusBar:
+            size_hint_y: 0.1
+
+<TopBar>
+    ActionView:
+        ActionPrevious:
+            app_icon: "images/police_icon.png"
+            title: ' Video Traffic Enforcement'
+            with_previous: False
+
+        ActionButton:
+            text: 'Main'
+            on_press: app.root.current = 'menu'
+        ActionButton:
+            text: 'Cameras'
+        ActionButton:
+            text: 'Radar'
+            on_press: app.root.current = 'radar'
+        ActionButton:
+            text: 'GPS'
+        ActionButton:
+            text: 'Events'
+        ActionButton:
+            text: 'System'
+            on_press: app.root.current = 'systemstatus'
+            
+        ActionButton:
+            text: 'Logs'
+        ActionButton:
+            text: 'Settings'
+            on_press: app.open_settings()
+        ActionButton:
+            text: 'Shutdown'
+            on_press: app.root.current = 'shutdown'
+
+<SystemButtons>
+    BoxLayout:
+        orientation: 'horizontal'
+        Label:
+            text: 'System'
+        Button:
+            id: system
+            text: 'System\n' + app.systemStatus
+            halign: 'center'
+            on_press: root.systemButtonDispatch()
+        Button:
+            text: 'Upload Data'
+            on_press: app.root.current = 'upload'
+        Button:
+            text: 'Status'
+            on_press: app.root.current = 'systemstatus'
+        Label:
+            text: ''
+
+<CameraViewButtons>
+    BoxLayout:
+        orientation: 'horizontal'
+        Label:
+            text: 'View'
+        Button:
+            text: 'Left View'
+            on_press: root.buttonLeftView()
+            on_press: app.root.current = 'left'
+        Button:
+            text: 'Front View'
+            on_press: root.buttonFrontView()
+            on_press: app.root.current = 'front'
+        Button:
+            text: 'Rear View'
+            on_press: root.buttonRearView()
+            on_press: app.root.current = 'rear'
+        Button:
+            text: 'Multi View'
+            on_press: root.buttonMultiView()
+
+<CameraControlButtons>
+    BoxLayout:
+        orientation: 'horizontal'
+        Label:
+            text: 'Camera'
+        Button:
+            id: leftcam
+            text: 'Left Camera\n' + app.leftCameraStatus
+            halign: 'center'
+            background_color: (1,0,0,1) if app.leftCameraStatus == "OFF" else (0,1,0,1)
+            on_press: root.buttonLeftCam()
+        Button:
+            id: frontcam
+            text: 'Front Camera\n' + app.frontCameraStatus
+            halign: 'center'
+            background_color: (1,0,0,1) if app.frontCameraStatus == "OFF" else (0,1,0,1)
+            on_press: root.buttonFrontCam()
+        Button:
+            id: rearcam
+            
+            text: 'Rear Camera\n' + app.rearCameraStatus
+            halign: 'center'
+            background_color: (1,0,0,1) if app.rearCameraStatus == "OFF" else (0,1,0,1)
+            on_press: root.buttonRearCam()
+        Button:
+            text: 'Right Camera\nDEACTIVATED'
+            halign: 'center'
+
+<SubsystemButtons>
+    BoxLayout:
+        orientation: 'horizontal'
+        Label:
+            text: 'Subsystems'
+        Button:
+            id: audio
+            text: 'Audio\n' + app.audioStatus
+            halign: 'center'
+            background_color: (1,0,0,1) if app.audioStatus == "OFF" else (0,1,0,1)
+            on_press: root.buttonAudio()
+        Button:
+            id: radar
+            text: 'Radar\n' + app.radarStatus
+            background_color: (1,0,0,1) if app.radarStatus == "OFF" else (0,1,0,1)
+            halign: 'center'
+            on_press: app.root.current = 'radar'
+        Button:           
+            id: gps
+            text: 'GPS\n' + app.gpsStatus
+            background_color: (1,0,0,1) if app.gpsStatus == "OFF" else (0,1,0,1)
+            halign: 'center'
+        Button:
+            id: gpslog
+            text: 'GPS Log\n' + app.gpsLogStatus
+            background_color: (1,0,0,1) if app.gpsLogStatus == "OFF" else (0,1,0,1)
+            halign: 'center'
+
+<DataButtons>
+    BoxLayout:
+        orientation: 'horizontal'
+        Label:
+            text: 'Data'
+        Button:
+            text: 'Event\nSummary'
+            halign: 'center'
+            on_press: app.root.current = 'eventsummary'
+        Button:
+            text: ''
+            halign: 'center'
+        Button:
+            text: ''
+            halign: 'center'
+        Button:
+            text: ''
+            halign: 'center'
+
+<EventButtons>
+    BoxLayout:
+        orientation: 'horizontal'
+        Label:
+            text: 'Events'
+        Button:
+            id: event_speeding
+            text: 'Speeding'
+            halign: 'center'
+            on_press: root.eventSpeeding()
+        Button:
+            id: event_failstop
+            text: 'Failure to\nYield or Stop'
+            halign: 'center'
+            on_press: root.eventFailStop()
+        Button:
+            id: event_lanechange
+            text: 'Illegal\nLane Change'
+            halign: 'center'
+            on_press: root.eventLaneChange()
+        Button:
+            id: event_reckless
+            text: 'Reckless\nDriving'
+            halign: 'center'
+            on_press: root.eventReckless()
+
+<ButtonPanel>
+    BoxLayout:
+        orientation: 'vertical'
+        SystemButtons:
+        CameraViewButtons:
+        CameraControlButtons:
+        SubsystemButtons:
+        DataButtons:
+        EventButtons:
+
+<StatusBar>
+    BoxLayout:
+        orientation: 'horizontal'
+        Label:
+            text: root.currentTime
+
+#############################################################
+
+<FrontScreen>:
+    BoxLayout:
+        Button:
+            text: 'Front View'
+            on_press: root.buttonControlView()
+            on_press: app.root.current = 'menu'
+
+<LeftScreen>:
+    BoxLayout:
+        Button:
+            text: 'Left View'
+            on_press: root.buttonControlView()
+            on_press: app.root.current = 'menu'
+
+<RearScreen>:
+    BoxLayout:
+        Button:
+            text: 'Rear View'
+            on_press: root.buttonControlView()
+            on_press: app.root.current = 'menu'
+
+<FrontQScreen>:
+    BoxLayout:
+        Button:
+            text: 'Front View'
+            on_press: app.root.current = 'quad'
+
+<LeftQScreen>:
+    BoxLayout:
+        Button:
+            text: 'Left View'
+            on_press: app.root.current = 'quad'
+
+<RearQScreen>:
+    BoxLayout:
+        Button:
+            text: 'Rear View'
+            on_press: app.root.current = 'quad'
+
+
+<QuadScreen>:
+    GridLayout: 
+        rows: 2
+        cols: 2
+        Button:
+            text: 'Left View'
+            on_press: app.root.current = 'leftquad'
+        Button:
+            text: 'Front View'
+            on_press: app.root.current = 'frontquad'
+        Button:
+            text: 'Rear View'
+            on_press: app.root.current = 'rearquad'
+        Button:
+            text: 'Info View'
+            on_press: app.root.current = 'menu'
+
+<SettingsScreen>:
+    BoxLayout:
+        Button:
+            text: 'Settings View'
+            on_press: app.root.current = 'menu'
+
+<UploadScreen>:
+    id: 'upload'
+    on_enter: root.uploadData()
+    on_leave: root.cancelUploadData()
+    BoxLayout:
+        padding: 20
+        spacing: 10
+        orientation: 'vertical'
+
+        TopBar:
+            size_hint_y: 0.1
+
+        BoxLayout:
+            size_hint_y: 0.7
+            orientation: 'vertical'
+            
+            Label:
+                text_size: self.size
+                valign: "top"
+                text: 'Vault Status:'
+            Label:
+                text_size: self.size
+                valign: "top"
+                text: root.vaultStatus
+            HSeparator
+
+            Label:
+                text_size: self.size
+                valign: "top"
+                text: 'Control Data:'
+            Label:
+                text_size: self.size
+                valign: "top"
+                text: root.controlStatus
+            Label:
+                text_size: self.size
+                valign: "top"
+                text: root.controlInfo
+            Label:
+                text_size: self.size
+                valign: "top"
+                text: "Total Progress " + str(root.pbControl.value) + "%"
+            ProgressBar:
+                value: root.pbControl.value
+                max: 100
+            HSeparator
+            
+            Label:
+                text_size: self.size
+                valign: "top"
+                text: 'Left Camera Data:'
+            Label:
+                text_size: self.size
+                valign: "top"
+                text: root.leftStatus
+            Label:
+                text_size: self.size
+                valign: "top"
+                text: root.leftInfo
+            Label:
+                text_size: self.size
+                valign: "top"
+                text: "Total Progress " + str(root.pbLeft.value) + "%"
+            ProgressBar:
+                value: root.pbLeft.value
+                max: 100
+            HSeparator
+            
+            Label:
+                text_size: self.size
+                valign: "top"
+                text: 'Front Camera Data:'
+            Label:
+                text_size: self.size
+                valign: "top"
+                text: root.frontStatus
+            Label:
+                text_size: self.size
+                valign: "top"
+                text: root.frontInfo
+            Label:
+                text_size: self.size
+                valign: "top"
+                text: "Total Progress " + str(root.pbFront.value) + "%"
+            ProgressBar:
+                value: root.pbFront.value
+                max: 100
+            HSeparator
+            
+            Label:
+                text_size: self.size
+                valign: "top"
+                text: 'Rear Camera Data:'
+            Label:
+                text_size: self.size
+                valign: "top"
+                text: root.rearStatus
+            Label:
+                text_size: self.size
+                valign: "top"
+                text: root.rearInfo
+            Label:
+                text_size: self.size
+                valign: "top"
+                text: "Total Progress " + str(root.pbRear.value) + "%"
+            ProgressBar:
+                color: (0,1,0,1)
+                value: root.pbRear.value
+                max: 100
+                        
+        Button:
+            size_hint_y: 0.1
+            text: 'Return Main Menu'
+            on_press: app.root.current = 'menu'
+
+        StatusBar:
+            size_hint_y: 0.1
+        
+
+<RadarDataView@RecycleView>:
+    viewclass: 'Label'
+    RecycleGridLayout:
+        cols: 1
+        default_size: None, dp(40)
+        default_size_hint: 1, None
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: 'vertical'
+
+<RadarScreen>
+    id: 'radar'
+    on_enter: root.radarData()
+    on_leave: root.cancelRadarData()
+    BoxLayout:
+        padding: 20
+        spacing: 10
+        orientation: 'vertical'
+
+        TopBar:
+            size_hint_y: 0.1
+
+        BoxLayout:
+            size_hint_y: 1.1
+            spacing: 10
+            orientation: 'horizontal'
+
+            Label:
+                size_hint_x: 0.2
+                text_size: self.size
+                font_size: '20sp'
+                valign: 'top'
+                halign: 'center'
+                text: '\nCamera Views'
+                canvas.after:
+                    Color:
+                        rgb: 1, 1, 1, 0.75
+                    Line:
+                        points: self.x, self.y, self.right, self.y
+                    Line:
+                        points: self.x, self.top, self.right, self.top
+                    Line:
+                        points: self.x, self.y, self.x, self.top
+                    Line:
+                        points: self.right, self.y, self.right, self.top
+
+            BoxLayout:
+                size_hint_x: 0.8
+                orientation: 'vertical'
+
+                BoxLayout:
+                    size_hint_y: 0.9
+                    RadarDataView:
+                        size_hint_x: .5
+                        data: [{'text': str(x)} for x in root.col1]
+                    RadarDataView:
+                        size_hint_x: .5
+                        data: [{'text': str(x)} for x in root.col2]
+                    
+                Button:
+                    size_hint_y: 0.1
+                    text: 'Return Main Menu'
+                    on_press: app.root.current = 'menu'
+
+        StatusBar:
+            size_hint_y: 0.1
+
+
+<EventSummaryScreen>
+
+    on_pre_enter: root.eventDataStatus()
+    on_enter: root.eventData()
+
+    BoxLayout:
+        orientation: 'vertical'
+        
+        GridLayout:
+            size_hint: 1, None
+            size_hint_y: None
+            height: 25
+            cols: 6
+            Label:
+                text: "Transmit Time"
+            Label:
+                text: "Hold Time"
+            Label:
+                text: "Locked Speed"
+            Label:
+                text: "Max Speed"
+            Label:
+                text: "Patrol Speed"
+            Label:
+                text: "Violation"
+
+        HSeparator
+
+        Label:
+            size_hint_y: 0.05
+            text: root.status
+
+        RecycleView:
+            scroll_type: ['bars', 'content']
+            scroll_wheel_distance: dp(114)
+            bar_width: dp(20)
+            viewclass: 'Label'
+            data: [{'text': str(x)} for x in root.data]
+            RecycleGridLayout:
+                cols: 6
+                default_size: None, dp(26)
+                default_size_hint: 1, None
+                size_hint_y: None
+                height: self.minimum_height
+                orientation: 'vertical'
+                multiselect: True
+                touch_multiselect: True
+            
+        Button:
+            size_hint_y: 0.1
+            text: 'Return Main Menu'
+            on_press: app.root.current = 'menu'
+
+<SystemStatusView@RecycleView>:
+    viewclass: 'Label'
+    RecycleGridLayout:
+        cols: 1
+        default_size: None, dp(40)
+        default_size_hint: 1, None
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: 'vertical'
+
+<SystemStatusScreen>
+
+    on_pre_enter: root.systemData()
+    on_enter: root.fetchSystemData()
+
+    BoxLayout:
+        orientation: "vertical"
+
+        GridLayout:
+            size_hint: 1, None
+            size_hint_y: 0.05
+            height: 40
+            cols: 5
+            Label:
+                size_hint_x: .2
+                text: root.status
+            Label:
+                size_hint_x: .2
+                text: "Control"
+            Label:
+                size_hint_x: .2
+                text: "Left Camera"
+            Label:
+                size_hint_x: .2
+                text: "Front Camera"
+            Label:
+                size_hint_x: .2
+                text: "Rear Camera"
+
+        HSeparator:
+
+        BoxLayout:
+            size_hint_y: 0.85
+            SystemStatusView:
+                size_hint_x: .2
+                data: [{'text': str(x)} for x in root.col1]
+            VSeparator:
+            SystemStatusView:
+                size_hint_x: .2
+                data: [{'text': str(x)} for x in root.col2]
+            SystemStatusView:
+                size_hint_x: .2
+                data: [{'text': str(x)} for x in root.col3]
+            SystemStatusView:
+                size_hint_x: .2
+                data: [{'text': str(x)} for x in root.col4]
+            SystemStatusView:
+                size_hint_x: .2
+                data: [{'text': str(x)} for x in root.col5]
+
+        Button:
+            size_hint_y: 0.1
+            text: 'Return Main Menu'
+            on_press: app.root.current = 'menu'
+
+<ShutdownScreen>
+    on_enter: root.doShutdown()
+    BoxLayout:
+        Label:
+            text: "Shutting Down System..."
