@@ -1,0 +1,14 @@
+[Unit]
+Description=Video Traffic Enforcement Watchdog Service
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 -u watchdog.py
+WorkingDirectory=/home/camera/vte/gui
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=camera
+
+[Install]
+WantedBy=multi-user.target
