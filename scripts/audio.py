@@ -1,21 +1,21 @@
 #!/usr/bin/python3
-#
-##import datetime
-##import datetime as dt
 
-##from __future__ import print_function
 import os
 import sys
 import signal
+import os.path
+import datetime as dt
 import time
+import argparse
+import textwrap
+import logging
 import subprocess
 import threading
 
-import getopt
-import argparse
+from logging.handlers import TimedRotatingFileHandler
 
-from vtelog import vteLog
-
+#
+#  VTE Audio is a python wrapper around the linux command arecord.
 #
 #  arecord is the shell command used to collect audio from a Bluetooth Microphone.
 #  This seems to work fine with PulseAudio.  The default microphone is set via the
@@ -57,145 +57,175 @@ from vtelog import vteLog
 #   https://linux.die.net/man/1/arecord
 #
 
+#
+#  Classs Description
+#
+
 class VTEAudio():
 
-    def __init__(self):
-
-        self.args = None
-        
-        self.mainDirectory  = "/home/camera/vte"
-        self.logDirectory   = self.mainDirectory + "/logs"
-        self.dataDirectory  = self.mainDirectory + "/data"
-        self.audioDirectory = self.dataDirectory + "/audio/"
-        self.logFileOut     = self.logDirectory + "/status.log"
-        
-        self.audioDelay = 0.2
-        self.quiet      = False
-        self.debug      = False
-        self.sampleRate = 16000
-        self.channels   = 2
-
-        self.audioLog = vteLog(self.audioDirectory, 'audio', 'wav')
-
     #
-    #  This function allows input of properties via command line
+    #  Initialize File Locations
     #
+    mainDirectory    = "/home/camera/vte"
+    logDirectory     = mainDirectory + "/logs"
+    dataDirectory    = mainDirectory + "/data"
+    subDataDirectory = dataDirectory + "/audio"
+    dataFilePrefix   = "audio"
+    dataFileSuffix   = "wav"
+    logFileName      = logDirectory + "/status"
 
-    def propertyInput(self, argv):
+    gpsURL        = "http://control.local:9001"
+    radarURL      = "http://control.local:9002"
 
-        self.args = argv
-        
-        try:
-            opts, args = getopt.getopt(self.args, "ha:r:qd",
-                                       ["help", "samplerate=", "audiodelay=", "quiet", "debug"])
+    waitTime      = 0.2  # Real-time break for main loop
+    timeBoundary  = 5    # Minute boundary to roll over information files
 
-        except getopt.GetoptError:
-            print("audio.py -h    to get HELP on options")
-            sys.exit(2) 
-        
-        for opt, arg in opts:
-            if opt == '-h':
-                print('audio.py options:')
-                print('    -r    --samplerate   set sample rate')
-                print('    -a    --audiodelay   set the number of seconds to wait for checking on')
-                print('                         file rollover')
-                print('    -q    --quiet        supress output from arecord')
-                print('    -d    --debug        turn on debug mode')
-                sys.exit()
-            
-            elif opt in ("-r", "--samplerate"):
-                self.sampleRate = arg
-            
-            elif opt in ("-a", "--audiodelay"):
-                self.audioDelay = arg
-                
-            elif opt in ("-q", "--quiet"):
-                self.quiet = True
 
-            elif opt in ("-d", "--debug"):
-                self.debug = True
+    def __init__(self, args):
 
-    #
-    #  This function performs the audio record.
-    #   1.  Figure out what the current audio file should be named
-    #   2.  Record to the audio file.
-    #
+        logger.debug ("Initializing VTE Audio Object")
+
+        #
+        #  Initialize Audio Object Parameters
+        #
+        self.quiet       = args.quiet
+        self.debug       = args.debug
+        self.sampleRate  = args.samplerate
+        self.channels    = 2
+        self.audioFormat = 'S16_LE'
+        self.fileType    = VTEAudio.dataFileSuffix
+
+        logger.debug(vars(self))
+        logger.debug("Finished initialization")
 
     def recordAudio(self):
     
-        print ("Entering recordAudio function")
+        logger.debug("Entering recordAudio function")
         
         #
         #  arecord -f S16_LE -c 2 -r 16000 a.wav
         #
-        audioFile = self.audioLog.get_current_file()
-        print ("Storing at ", audioFile)
-        print ("Start Audio recording")
+        audioFormat = self.audioFormat
+        channels    = str(self.channels)
+        sampleRate  = str(self.sampleRate)
+        audioFile   = self.dataFile
+        
+        logger.info ("Storing at " + audioFile)
+        logger.info ("Start Audio recording")
 
-        cmdline = ['arecord', '-f', 'S16_LE', '-c', '2', '-r', '16000', audioFile]
+        cmdline = ['arecord', '-f', audioFormat, '-c', channels, '-r', sampleRate, audioFile]
+        logger.debug ("calling arecord as : " + str(cmdline))
         proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE )
 
-        print ("Exiting recordAudio function")
+        logger.debug ("Exiting recordAudio function")
         return proc
 
-#
+    def rotateCheck(self):
+
+        currentMinutes = int(dt.datetime.now().minute)
+
+            #   Checks if we are at a multiple of time boundary minutes and if our current minutes don't
+            #       equal our last rotation
+
+        if (not(currentMinutes % VTEAudio.timeBoundary)  and  currentMinutes != self.lastRotate):
+            logger.debug ("Current Minutes = " + str(currentMinutes))
+            logger.debug (vars(self))
+            logger.debug ("Check for file rotation.  Rotate File")
+            return True
+
+        else:
+            return False
+
+    def setDataFile(self):
+
+        logger.debug ("Setting the Data File Name")
+
+        #
+        #  Make the video directory if it does not exist
+        #
+
+        if not os.path.exists(VTEAudio.subDataDirectory):
+            os.makedirs(VTEAudio.subDataDirectory)
+
+        self.dataFile    = VTEAudio.subDataDirectory + '/' + \
+                           VTEAudio.dataFilePrefix + "_" + dt.datetime.now().strftime('%Y%m%d_%H%M%S') + \
+                             "." + VTEAudio.dataFileSuffix
+        self.lastRotate  = int(dt.datetime.now().strftime('%M'))  # Set last rotation
+
+        logger.debug ("Done Setting the Video File Name")
+
+#########################################
 #  Main
-#
+#########################################
+def main(args):
 
-def main(argv):
-    print ("VTE Audio Starting...")
+    logger.debug ("Entering main function")
 
-    #
-    #  Create Audio object
-    #
+    vteaudio = VTEAudio(args)        # Create VTE Audio Object   
 
-    vteaudio= VTEAudio()
-
-    #
-    #  Parse Arguments
-    #
-    vteaudio.propertyInput(argv)
-
-    #
-    #  Record Audio
-    #
-
-    proc = vteaudio.recordAudio()
-    
-    while True:
-        try:
-            #
-            #  Check to see if we need to break file into 15 minute chunk
-            #
-            if (vteaudio.audioLog.ready_to_rotate()):
-                #
-                #  Stop current audio recording
-                #
-                proc.send_signal(signal.SIGTERM)
-                print ("Stopping current recording")
-                #
-                #  Start new audio recording
-                #
-                vteaudio.audioLog.rotate()
-                proc = vteaudio.recordAudio()
-                print ("Starting new recording")
-
-            time.sleep(vteaudio.audioDelay)
-
+    try:
         #
-        #  Handle Exit
+        #  Main Loop for Program
         #
-        
-        except(KeyboardInterrupt, SystemExit):
+
+        while(True):
             #
-            #  Stop the current recording
+            #  Set audio recording file and start audio recording
+            #
+            vteaudio.setDataFile()
+            proc = vteaudio.recordAudio()
+            
+            while not (vteaudio.rotateCheck()):
+                time.sleep(VTEAudio.waitTime)
+
+            #
+            #  Stop current audio recording
             #
             proc.send_signal(signal.SIGTERM)
-            print ("Stopping current recording")
-            print ("VTE Audio Ending...")
-            exit()
+            logger.info ("Stopping current audio recording")
 
-    sys.exit(0)
+
+    except (KeyboardInterrupt, SystemExit):
+        logger.debug("Exiting main function")
+        sys.exit(0)
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+
+    #
+    #  Parse Command Line Options
+    #
+
+    
+    parser = argparse.ArgumentParser(prog='audio.py',
+                 formatter_class=argparse.RawDescriptionHelpFormatter,
+                 description='Video Taffic Enforcement Audio - Version 0.1')
+
+    parser.add_argument('-r', '--samplerate', default=8000, help="Set Sample Rate")
+    parser.add_argument('-q', '--quiet', action='store_true', help="Surpress output from arecord")
+    parser.add_argument('-v', '--debug', action='store_true',help="Turn on debug mode for logging")
+
+    args = parser.parse_args()
+    
+    #
+    #  Configure Logging
+    #
+    FORMAT  = 'Audio: %(asctime)-15s: %(levelname)-5s: %(message)s'
+    logger  = logging.getLogger('status')
+    handler = logging.handlers.TimedRotatingFileHandler(VTEAudio.logFileName, when='midnight')
+    
+    handler.setFormatter(logging.Formatter(FORMAT))
+
+    if (args.debug):
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
+
+    logger.addHandler(handler)
+                        
+    logger.info ("Starting Audio")
+    logger.debug (vars(args))
+    
+    #
+    #  Start main with command-line arguments
+    #
+    main(args)

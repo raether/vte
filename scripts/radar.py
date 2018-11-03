@@ -23,7 +23,7 @@ main_directory     = "/home/camera/vte"
 log_directory      = main_directory + "/logs"
 data_directory     = main_directory + "/data"
 radarlog_directory = data_directory + "/radar/"
-logfile_out        = log_directory + "/status.log"
+logfile_out        = log_directory + "/status"
 
 ###############################################################################
 # HTTP Server for retrieving Radar Data
@@ -234,6 +234,7 @@ class RadarDoc:
                             ("PatrolSpeed", self.patrolSpeed),
                             ("LockedTargetSpeed", lockedTargetSpeed),
                             ("LockedPatrolSpeed", lockedPatrolSpeed),
+                            ("MaxTargetSpeed", lastMaxSpeed),
                             ("Mode", self.mode),
                             ("AntennaConnections", self.antennaConnections)])
 
@@ -264,6 +265,7 @@ lockedPatrolSpeed   = 0
 antennaConnections  = AntennaConnections()
 lastTransmitMode    = False
 lastLockedTargetSpeed = 0
+lastMaxSpeed          = 0
 
 #  TODO:
 #  RADAR_DEVICE is a hard coded string.   Code should be enhanced to find the
@@ -289,8 +291,8 @@ print 'Started httpserver on port ' , PORT_NUMBER
 print "Reading Serial Port..."
 
 log = open(logfile_out, "a", 1) # non blocking
-radarlog = vteLog(radarlog_directory,'radar','csv')
-violationlog = vteLog(radarlog_directory,'violations','csv')
+radarlog = vteLog(radarlog_directory,'radar','csv', 5)
+violationlog = vteLog(radarlog_directory,'violations','csv', 0)
 
 #
 #  Read bytes off of serial port
@@ -374,11 +376,15 @@ while True:
 
             # Data Sequence 12 - Antenna Connections
             if (i == 12):
-                antennaConnections.field = int_value            
+                antennaConnections.field = int_value
 
-        radarlog.write_log(str(current_timestamp) + ', '+ \
+        if (targetSpeed > lastMaxSpeed):
+            lastMaxSpeed = targetSpeed
+
+        radarlog.writeLog(str(current_timestamp) + ', '+ \
                          str(targetSpeed) + ', ' + \
                          str(patrolSpeed) + ', ' + \
+                         str(lastMaxSpeed) + ', ' + \
                          str(lockedTargetSpeed) + ', ' + \
                          str(mode.field) + ', ' + \
                          str(errors.field) + '\n')
@@ -393,10 +399,14 @@ while True:
             #
             #  Detect that we went from Hold to Active
             #
-            violationlog.write_log(str(current_timestamp) + ', '+ \
+
+            lastMaxSpeed = targetSpeed
+            
+            violationlog.writeLog(str(current_timestamp) + ', '+ \
                          str(targetSpeed) + ', ' + \
                          str(patrolSpeed) + ', ' + \
                          str(lockedTargetSpeed) + ', ' + \
+                         str(lastMaxSpeed) + ', ' + \
                          str(mode.field) + ', ' + \
                          str(errors.field) + ', ' + \
                          'transmit' + '\n')
@@ -405,21 +415,24 @@ while True:
             #
             #  Detect that we went from Active to Hold
             #
-            violationlog.write_log(str(current_timestamp) + ', '+ \
+            violationlog.writeLog(str(current_timestamp) + ', '+ \
                          str(targetSpeed) + ', ' + \
                          str(patrolSpeed) + ', ' + \
                          str(lockedTargetSpeed) + ', ' + \
+                         str(lastMaxSpeed) + ', ' + \
                          str(mode.field) + ', ' + \
                          str(errors.field) + ', ' + \
                          'hold' + '\n')
+
         if ((lockedTargetSpeed != lastLockedTargetSpeed) and (lockedTargetSpeed > 5)):
             #
             #  Detect that we went from Active to Hold
             #
-            violationlog.write_log(str(current_timestamp) + ', '+ \
+            violationlog.writeLog(str(current_timestamp) + ', '+ \
                          str(targetSpeed) + ', ' + \
                          str(patrolSpeed) + ', ' + \
                          str(lockedTargetSpeed) + ', ' + \
+                         str(lastMaxSpeed) + ', ' + \
                          str(mode.field) + ', ' + \
                          str(errors.field) + ', ' + \
                          'lock' + '\n')

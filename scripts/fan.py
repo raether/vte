@@ -22,7 +22,7 @@ CONTROLLER_DEVICE = "/dev/arduino"
 main_directory     = "/home/camera/vte"
 log_directory      = main_directory + "/logs/"
 data_directory     = main_directory + "/data"
-logfile_out        = log_directory + "/status.log"
+logfile_out        = log_directory + "/status"
 
 ###############################################################################
 # HTTP Server for retrieving Radar Data

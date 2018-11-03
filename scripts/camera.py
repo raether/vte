@@ -1,7 +1,5 @@
 #!/usr/bin/python3
 
-# import datetime
-
 import picamera
 import datetime as dt
 
@@ -32,7 +30,7 @@ class VTECamera:
     mainDirectory = "/home/camera/vte"
     logDirectory  = mainDirectory + "/logs"
     dataDirectory = mainDirectory + "/data"
-    logFileName   = logDirectory + "/status.log"
+    logFileName   = logDirectory + "/status"
 
     gpsURL        = "http://control.local:9001"
     radarURL      = "http://control.local:9002"
@@ -112,7 +110,7 @@ class VTECamera:
         
         try:
             #   Request data from GPS URL
-            r = requests.get(VTECamera.gpsURL)
+            r = requests.get(VTECamera.gpsURL, timeout=0.1)
             #   Check status code if success request
             if r.status_code == 200:
                 #   Try opening json file we received
@@ -176,7 +174,7 @@ class VTECamera:
         
         try:
             #   Request data from radar URL
-            r = requests.get(VTECamera.radarURL)
+            r = requests.get(VTECamera.radarURL, timeout=0.1)
                 #   Check status code if success request
             if r.status_code == 200:
                 #   Try opening json file we received
@@ -206,7 +204,7 @@ class VTECamera:
         try:
         
             self.patrolSpeed  = str(self.radarData["PatrolSpeed"]) 
-            self.lockedTarget = str(self.radarData["LockedTargetSpeed"]) #Assign respective object attributes based on parsed info
+            self.lockedTarget = str(self.radarData["LockedTargetSpeed"])
             self.targetSpeed  = str(self.radarData["TargetSpeed"])
             self.Antenna      = str(self.radarData["Mode"]["antenna"])
             self.Transmit     = str(self.radarData["Mode"]["transmit"])
@@ -228,8 +226,7 @@ class VTECamera:
         currentTime = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         gpsText, vehicleSpeed = self.gpsAnnotate()
-##        radarText             = self.radarAnnotate()
-        radarText = "NO RADAR DATA"
+        radarText             = self.radarAnnotate()
         
         cameraAnnotate = "  " + self.cameraView.title() + "  " + \
                               currentTime + "  " + \
@@ -371,6 +368,7 @@ class VTECamera:
         #
         self.camera.stop_recording()
         logging.info ("Stopping video recording")
+        logging.info ("Stopping Camera")
 
         #
         #  Stream Video to a http port

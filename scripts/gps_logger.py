@@ -1,36 +1,50 @@
-#! /usr/bin/python
- 
+#!/usr/bin/python3
+
+import sys
+import signal
 import os
-from gps import *
-from time import *
+import datetime as dt
 import time
+import argparse
+import textwrap
+import logging
 import threading
-from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
 import json
+
+from logging.handlers import TimedRotatingFileHandler
+from gps3.agps3threaded import AGPS3mechanism
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from vtelog import vteLog
-from datetime import datetime
-
-PORT_NUMBER = 9001
-
-main_directory = "/home/camera/vte"
-log_directory = main_directory + "/logs"
-data_directory = main_directory + "/data"
-gpslog_directory = data_directory + "/gps/"
-logfile_out = log_directory + "/status.log"
-
-gpsd = None   #seting the global variable
-
-#This class will handles any incoming request from
-#the browser
 
 class gpsHandler(BaseHTTPRequestHandler):
+
+
 	
-    #Handler for the GET requests
+    #
+    #  HTTP Handler for GET requests for GPS Data on the network
+    #
+    
     def do_GET(self):
+        
+        global curr_lat
+        global curr_long
+        global curr_time
+        global curr_eps
+        global curr_epx
+        global curr_epv
+        global curr_ept
+        global curr_heading
+        global curr_speed
+
+        logger.debug ("HTTP GET Request for GPS Data")
+        
         self.send_response(200)
         self.send_header('Content-type','text/html')
         self.end_headers()
-        # Send the json message
+
+        #
+        # Send the response in JSON format
+        #
         message = json.dumps({
                         'Latitude'  : curr_lat,
                         'Longitude' : curr_long,
@@ -42,64 +56,111 @@ class gpsHandler(BaseHTTPRequestHandler):
                         'ErrorEpv'  : curr_epv,
                         'ErrorEpt'  : curr_ept
                         })
-        self.wfile.write(message)
+
+        logger.debug (message) 
+        self.wfile.write(message.encode('utf-8'))
         return
+
+    # Absolutely essential!  This ensures that socket resuse is setup BEFORE
+    # it is bound.  Will avoid a TIME_WAIT issue
+    #
+    def server_bind(self):
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.bind(self.server_address)
 
     def log_message(self, format, *args):
         return
 
 class GpsPoller(threading.Thread):
     
-  def __init__(self):
-    threading.Thread.__init__(self)
-    global gpsd #bring it in scope
-    gpsd = gps(mode=WATCH_ENABLE) #starting the stream of info
-    self.current_value = None
-    self.running = True #setting the thread running to true
-    self.daemon = True
+    #
+    #  Initialize File Locations
+    #
+    mainDirectory    = "/home/camera/vte"
+    logDirectory     = mainDirectory + "/logs"
+    dataDirectory    = mainDirectory + "/data"
+    subDataDirectory = dataDirectory + "/gps/"
+    dataFilePrefix   = "gps"
+    dataFileSuffix   = "csv"
+    logFileName      = logDirectory + "/status"
+
+    GPS_PORT_NUM     = 9001
+
+    gpsURL        = "http://control.local:9001"
+    radarURL      = "http://control.local:9002"
+
+    waitTime      = 1.0  # Real-time break for main loop
+    timeBoundary  = 5    # Minute boundary to roll over information files
+
+
  
-  def run(self):
-    global gpsd
-    while gpsp.running:
-      gpsd.next() #this will continue to loop and grab EACH set of gpsd info to clear the buffer
- 
-if __name__ == '__main__':
-  gpsp = GpsPoller()   # Create the GPS Poller Thread
-  
-  try:
+#########################################
+#  Main
+#########################################
+def main(args):
 
-        log = open(logfile_out, "a", 1) # non blocking
+    global curr_lat
+    global curr_long
+    global curr_time
+    global curr_eps
+    global curr_epx
+    global curr_epv
+    global curr_ept
+    global curr_heading
+    global curr_speed
 
-        gpslog = vteLog(gpslog_directory,'gps','csv')
+    logger.debug ("Entering main function")
+    logger.debug ("Log at " + GpsPoller.subDataDirectory)
+    
+    gpslog = vteLog (GpsPoller.subDataDirectory, GpsPoller.dataFilePrefix, \
+                    GpsPoller.dataFileSuffix, GpsPoller.timeBoundary)
 
-        gpsp.start() # start it up
+    gpsd = AGPS3mechanism()
+
+    try:
 
         #
-        #  Start up simple HTTP Server to handle requests for radar information
+        #  Create the GPS Poller Thread
         #
-        server = HTTPServer(('', PORT_NUMBER), gpsHandler)
+        logger.debug("Creating GPS Poller Process")
 
+        gpsd.stream_data()
+        gpsd.run_thread() 
+
+        #
+        #  Start up simple HTTP Server to handle requests for GPS information
+        #
+        logger.debug("Starting HTTP Server Process")
+        server = HTTPServer(('',GpsPoller.GPS_PORT_NUM), gpsHandler)
         t=threading.Thread(target=server.serve_forever)
         t.daemon = True
         t.start()
 
-        print 'Started httpserver on port ' , PORT_NUMBER
-        print "Reading Serial Port..."
+        logger.info("Created http server on port " + str(GpsPoller.GPS_PORT_NUM))
+        logger.info("Starting to read GPS information")
 
         while True:
-            curr_lat = gpsd.fix.latitude
-            curr_long = gpsd.fix.longitude
-            curr_time = gpsd.utc
-            curr_eps = gpsd.fix.eps
-            curr_epx = gpsd.fix.epx
-            curr_epv = gpsd.fix.epv
-            curr_ept = gpsd.fix.ept
-            curr_speed = round(gpsd.fix.speed * 2.23694)
-            curr_heading = gpsd.fix.track
+            #
+            #  Main Loop for Program
+            #
 
-            current_timestamp = datetime.now().strftime('%Y-%m-%d %H;%M:%S')
+            curr_lat     = gpsd.data_stream.lat
+            curr_long    = gpsd.data_stream.lon
+            curr_time    = gpsd.data_stream.time
+            curr_eps     = gpsd.data_stream.eps
+            curr_epx     = gpsd.data_stream.epx
+            curr_epv     = gpsd.data_stream.epv
+            curr_ept     = gpsd.data_stream.ept
+            curr_heading = gpsd.data_stream.track
 
-            gpslog.write_log(str(current_timestamp) + ', ' + \
+            if (gpsd.data_stream.speed == 'n/a'):
+                curr_speed = 0.0
+            else:
+                curr_speed = round(float(gpsd.data_stream.speed) * 2.23694)
+
+            current_timestamp = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+            gpslog.writeLog (str(current_timestamp) + ', ' + \
                              str(curr_time) + ', ' + \
                              str(curr_lat) + ', ' + \
                              str(curr_long) + ', ' + \
@@ -109,12 +170,58 @@ if __name__ == '__main__':
                              str(curr_epx) + ', ' + \
                              str(curr_epv) + ', ' + \
                              str(curr_ept) + '\n')
-     
-            time.sleep(1) #set to whatever
- 
-  except (KeyboardInterrupt, SystemExit): #when you press ctrl+c
-    print "\nKilling Thread..."
-    gpsp.running = False
-    gpsp.join() # wait for the thread to finish what it's doing
-  print "Done.\nExiting."
 
+            time.sleep(GpsPoller.waitTime)
+
+    except (KeyboardInterrupt, SystemExit):
+        logger.debug ("Exiting main function")
+        logger.debug ("Stopping Radar HTTP Server")
+        server.shutdown()
+        logger.debug ("Closing HTTP Server Port")
+        server.server_close()
+        logger.info ("Stopping GPS Poller")
+        sys.exit(0)
+
+if __name__ == "__main__":
+
+    #
+    #  Parse Command Line Options
+    #
+
+    
+    parser = argparse.ArgumentParser(prog='gps_logger.py',
+                 formatter_class=argparse.RawDescriptionHelpFormatter,
+                 description='Video Taffic Enforcement GPS Logger - Version 0.1',
+                 epilog=textwrap.dedent('''\
+                    Notes
+                    -------------------------------------------------------------------------------------------------------
+                    GPS Logger
+                    -------------------------------------------------------------------------------------------------------
+                    '''))
+
+    parser.add_argument('-v', '--debug', action='store_true', help="Turn on debug mode for logging")
+    args = parser.parse_args()
+    
+    #
+    #  Configure Logging
+    #
+    FORMAT  = 'GPS: %(asctime)-15s: %(levelname)-5s: %(message)s'
+    logger  = logging.getLogger('status')
+    handler = logging.handlers.TimedRotatingFileHandler(GpsPoller.logFileName, when='midnight')
+    
+    handler.setFormatter(logging.Formatter(FORMAT))
+
+    if (args.debug):
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
+
+    logger.addHandler(handler)
+                        
+    logger.info ("Starting GPS Logger")
+    logger.debug (vars(args))
+    
+    #
+    #  Start main with command-line arguments
+    #
+    main(args)

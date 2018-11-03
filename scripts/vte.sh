@@ -16,7 +16,7 @@
   main_dir="/home/camera/vte"
   log_dir="$main_dir/logs"
   data_dir="$main_dir/data"
-  log_file="status.log"
+  log_file="status"
   status_out="$log_dir/$log_file"
 
   control_host_name="control.local"
@@ -107,7 +107,7 @@ exit
 
 write_log_msg()
 {
-	printf "`date +%T` [VTE]: $1\n" >> $status_out
+	printf "VTE: `date +%T`: INFO :$1\n" >> $status_out
 }
 
 ######################################################
@@ -232,7 +232,7 @@ start_left_camera()
                 write_log_msg "Left Video Camera Process is already running"
         else
                 write_log_msg "Starting Left Video Camera"
-                ssh left.local $main_dir/scripts/camera.py --left rear --display full --stream > /dev/null 2>&1 &
+                ssh left.local $main_dir/scripts/camera.py left > /dev/null 2>&1 &
         fi
 }
 
@@ -259,7 +259,7 @@ start_rear_camera()
 		write_log_msg "Rear Video Camera Process is already running"	
 	else 
 		write_log_msg "Starting Rear Video Camera"
-  		ssh rear.local $main_dir/scripts/camera.py --view rear --display full --stream > /dev/null 2>&1 &
+  		ssh rear.local $main_dir/scripts/camera.py rear > /dev/null 2>&1 &
 	fi
 }
 
@@ -272,7 +272,7 @@ monitor_rear_camera()
 	else 
 		rear_camera_status="ERROR"
 		write_log_msg "ERROR - Restarting Rear Video Camera Process"
-  		ssh rear.local $main_dir/scripts/camera.py --view rear --display full --stream > /dev/null 2>&1 &
+  		ssh rear.local $main_dir/scripts/camera.py rear > /dev/null 2>&1 &
 	fi
 }
 
@@ -284,7 +284,7 @@ start_front_camera()
 		write_log_msg "Front Video Camera Process is already running"	
 	else 
 		write_log_msg "Starting Front Video Camera"
-  		ssh front.local $main_dir/scripts/camera.py --vflip --hflip --view front --display full --stream > /dev/null 2>&1 &
+  		ssh front.local $main_dir/scripts/camera.py --vflip --hflip front > /dev/null 2>&1 &
 	fi
 }
 
@@ -297,7 +297,7 @@ monitor_front_camera()
 	else 
 		front_camera_status="ERROR"
 		write_log_msg "ERROR - Restarting Front Video Camera Process"
-  		ssh front.local $main_dir/scripts/camera.py --vflip --hflip  --view front --display full --stream > /dev/null 2>&1 &
+  		ssh front.local $main_dir/scripts/camera.py --vflip --hflip  front > /dev/null 2>&1 &
 	fi
 }
 
@@ -487,40 +487,40 @@ system_monitor()
 	control_display_temperature="`/opt/vc/bin/vcgencmd measure_temp | awk -F\= '{print $2}'`"
 	control_thermal_temperature="`cat /sys/class/thermal/thermal_zone0/temp`"
 	control_current_speed="`cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`"
-	control_display_speed="`expr $left_current_speed / 1000`Mhz"
+	control_display_speed="`expr $control_current_speed / 1000`Mhz"
 	control_uptime_info="`uptime | cut -c11-80`"
-	control_disk_usage="`df -h $data_dir | grep mmcblk0p3 | awk '{print $5}'`"
+	control_disk_usage="`df -h $data_dir | grep root | awk '{print $5}'`"
 
-	left_display_temperature="`ssh rear.local /opt/vc/bin/vcgencmd measure_temp | awk -F\= '{print $2}'`"
-	left_thermal_temperature="`ssh rear.local cat /sys/class/thermal/thermal_zone0/temp`"
-	left_current_speed="`ssh rear.local cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`"
-	left_display_speed="`expr $rear_current_speed / 1000`Mhz"
-	left_uptime_info="`ssh rear.local uptime | cut -c11-80`"
-	left_disk_usage="`ssh rear.local df -h $main_dir | grep mmcblk0p3 | awk '{print $5}'`"
+	left_display_temperature="`ssh left.local /opt/vc/bin/vcgencmd measure_temp | awk -F\= '{print $2}'`"
+	left_thermal_temperature="`ssh left.local cat /sys/class/thermal/thermal_zone0/temp`"
+	left_current_speed="`ssh left.local cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`"
+	left_display_speed="`expr $left_current_speed / 1000`Mhz"
+	left_uptime_info="`ssh left.local uptime | cut -c11-80`"
+	left_disk_usage="`ssh left.local df -h $data_dir | grep mmcblk0p3 | awk '{print $5}'`"
 
 	rear_display_temperature="`ssh rear.local /opt/vc/bin/vcgencmd measure_temp | awk -F\= '{print $2}'`"
 	rear_thermal_temperature="`ssh rear.local cat /sys/class/thermal/thermal_zone0/temp`"
 	rear_current_speed="`ssh rear.local cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`"
 	rear_display_speed="`expr $rear_current_speed / 1000`Mhz"
 	rear_uptime_info="`ssh rear.local uptime | cut -c11-80`"
-	rear_disk_usage="`ssh rear.local df -h $main_dir | grep mmcblk0p3 | awk '{print $5}'`"
+	rear_disk_usage="`ssh rear.local df -h $data_dir | grep mmcblk0p3 | awk '{print $5}'`"
 
 	front_display_temperature="`ssh front.local /opt/vc/bin/vcgencmd measure_temp | awk -F\= '{print $2}'`"
 	front_thermal_temperature="`ssh front.local cat /sys/class/thermal/thermal_zone0/temp`"
 	front_current_speed="`ssh front.local cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`"
 	front_display_speed="`expr $front_current_speed / 1000`Mhz"
 	front_uptime_info="`ssh front.local uptime | cut -c11-80`"
-	front_disk_usage="`ssh front.local df -h $main_dir | grep mmcblk0p3 | awk '{print $5}'`"
+	front_disk_usage="`ssh front.local df -h $data_dir | grep mmcblk0p3 | awk '{print $5}'`"
 
 	write_log_msg "CONTROL SYSTEM: $front_uptime_info, $front_display_speed, $front_display_temperature"
-	write_log_msg "FRONT SYSTEM: $front_uptime_info, $front_display_speed, $front_display_temperature"
-	write_log_msg "REAR SYSTEM: $rear_uptime_info, $rear_display_speed, $rear_display_temperature"
-	write_log_msg "LEFT SYSTEM: $left_uptime_info, $left_display_speed, $left_display_temperature"
+	write_log_msg "FRONT SYSTEM  : $front_uptime_info, $front_display_speed, $front_display_temperature"
+	write_log_msg "REAR SYSTEM   : $rear_uptime_info, $rear_display_speed, $rear_display_temperature"
+	write_log_msg "LEFT SYSTEM   : $left_uptime_info, $left_display_speed, $left_display_temperature"
 
-	write_log_msg "CONTROL SYSTEM: Disk Usage is $front_disk_usage%"
-	write_log_msg "FRONT SYSTEM: Disk Usage is $front_disk_usage%"
-	write_log_msg "REAR SYSTEM : Disk Usage is $rear_disk_usage%"
-	write_log_msg "LEFT SYSTEM : Disk Usage is $left_disk_usage%"
+	write_log_msg "CONTROL SYSTEM: Disk Usage is $control_disk_usage%"
+	write_log_msg "FRONT SYSTEM  : Disk Usage is $front_disk_usage%"
+	write_log_msg "REAR SYSTEM   : Disk Usage is $rear_disk_usage%"
+	write_log_msg "LEFT SYSTEM   : Disk Usage is $left_disk_usage%"
 
         #
         #  If temperature is over a threshold, shutdown the machine
@@ -547,7 +547,7 @@ process_monitor()
         monitor_left_camera
 #        monitor_frontview
 #        monitor_rearview
-#        monitor_audio
+        monitor_audio
 #        monitor_navit
 #        monitor_homebase
 
@@ -560,7 +560,7 @@ process_monitor()
 #        write_log_msg "REAR VIEW STATUS     = $rearview_status"
 	write_log_msg "GPS SYSTEM STATUS    = $gpsd_status"
         write_log_msg "RADAR SYSTEM STATUS  = $radar_status"
-#        write_log_msg "AUDIO SYSTEM STATUS  = $audio_status"
+        write_log_msg "AUDIO SYSTEM STATUS  = $audio_status"
 #        write_log_msg "NAVIGATION STATUS    = $navit_status"
 #        write_log_msg "HOMEBASE STATUS      = $homebase_status"
 }
@@ -614,10 +614,6 @@ write_log_msg "----------------------------------------------------------"
 #
 start_gpsd
 #
-#  Synchronize Time Across Servers
-#
-# sync_time
-#
 #  Start GPS Logger
 #
 start_gps
@@ -636,7 +632,7 @@ start_rear_camera
 #
 #  Start Audio System
 #
-# start_audio
+start_audio
 #
 #  Turn on rear view camera viewer
 #
