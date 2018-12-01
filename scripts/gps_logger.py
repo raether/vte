@@ -35,6 +35,7 @@ class gpsHandler(BaseHTTPRequestHandler):
         global curr_ept
         global curr_heading
         global curr_speed
+        global curr_status
 
         logger.debug ("HTTP GET Request for GPS Data")
         
@@ -108,6 +109,7 @@ def main(args):
     global curr_ept
     global curr_heading
     global curr_speed
+    global curr_status
 
     logger.debug ("Entering main function")
     logger.debug ("Log at " + GpsPoller.subDataDirectory)
@@ -170,6 +172,7 @@ def main(args):
                              str(curr_epx) + ', ' + \
                              str(curr_epv) + ', ' + \
                              str(curr_ept) + '\n')
+            
 
             time.sleep(GpsPoller.waitTime)
 
