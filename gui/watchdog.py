@@ -32,7 +32,9 @@ audioStatus       = ""
 radarStatus       = ""
 gpsStatus         = ""
 gpsLogStatus      = ""
-guiStatus         = ''
+guiStatus         = ""
+btStatus          = ""
+wifiStatus        = ""
 
 systemButton      = "UNKNOWN"
 frontCameraButton = "UNKNOWN"
@@ -42,9 +44,10 @@ audioButton       = "UNKNOWN"
 
 class watchDogHandler(BaseHTTPRequestHandler):
     
-    global controlData, leftData, frontData, rearData, currentTimestamp
+    global controlData, leftData, frontData, rearData, timestamp
     global leftCameraStatus, frontCameraStatus, rearCameraStatus
     global audioStatus, radarStatus, gpsStatus, gpsLogStatus, guiStatus
+    global btStatus, wifiStatus
     global systemButton, frontCameraButton, leftCameraButton, rearCameraButton, audioButton
     global buttonStateTime
 
@@ -81,13 +84,15 @@ class watchDogHandler(BaseHTTPRequestHandler):
         processList['GPS']         = gpsStatus
         processList['GPSLogger']   = gpsLogStatus
         processList['GUI']         = guiStatus
+        processList['wifi']        = wifiStatus
+        processList['bt']          = btStatus
         
         message = json.dumps({'Control'     : controlData,
                               'Left'        : leftData,
                               'Front'       : frontData,
                               'Rear'        : rearData,
                               'ProcessList' : processList,
-                              'Timestamp'   : currentTimestamp
+                              'timestamp'   : timestamp
                               })
 
         logger.debug (message) 
@@ -159,9 +164,10 @@ class watchDog (threading.Thread):
 #########################################
 def main(args):
 
-    global controlData, leftData, frontData, rearData, currentTimestamp
+    global controlData, leftData, frontData, rearData, timestamp
     global leftCameraStatus, frontCameraStatus, rearCameraStatus
     global audioStatus, radarStatus, gpsStatus, gpsLogStatus, guiStatus
+    global btStatus, wifiStatus
     global systemButton, frontCameraButton, leftCameraButton, rearCameraButton, audioButton
     global buttonStateTime
 
@@ -185,17 +191,29 @@ def main(args):
 
         buttonStateTime = dt.datetime.now()
 
+        #
+        #  Main Loop for WatchDog
         while True:
             #
-            #  Main Loop for Program
+            #  Get server telemetry data
             #
-
-            
             controlData = vte.getServerData("control.local")
             leftData    = vte.getServerData("left.local")
             frontData   = vte.getServerData("front.local")
             rearData    = vte.getServerData("rear.local")
-
+            #
+            #  Get status on all the VTE processes and timestamp the status.
+            #  Buttons may be pressed on the GUI and the timestamp is used to
+            #  determine whether the watchdog status is more up-to-date than
+            #  the GUI determiend status.
+            #
+            
+            #
+            #  Get the current time
+            #
+            currentTime = dt.datetime.now()
+            timestamp   = currentTime.strftime('%Y-%m-%d %H:%M:%S')
+            
             leftCameraStatus  = vte.leftCameraStatus()
             frontCameraStatus = vte.frontCameraStatus()
             rearCameraStatus  = vte.rearCameraStatus()
@@ -204,18 +222,30 @@ def main(args):
             gpsStatus         = vte.gpsdStatus()
             gpsLogStatus      = vte.gpsStatus()
             guiStatus         = vte.guiStatus()
-         
-            currentTime      = dt.datetime.now()
-            currentTimestamp = currentTime.strftime('%Y-%m-%d %H:%M:%S')
+            wifiStatus        = vte.wifiStatus()
+            btStatus          = vte.btConnected()
+            #
+            #  Generate time sync report
+            #
+            vte.genTimeReport()
+
             elapsedButtonState = (currentTime - buttonStateTime).total_seconds()
-            
+            #
+            #  Print any debug information
+            #
             logger.debug(str(controlData))
             logger.debug(str(leftData))
             logger.debug(str(frontData))
             logger.debug(str(rearData))
             logger.debug("Last Button Status " + str(elapsedButtonState) + " seconds ago")
             logger.debug("System Button is set to : " + systemButton)
-            logger.debug("Left Camera Button is set to : " + leftCameraButton)          
+            logger.debug("Left Camera Button is set to : " + leftCameraButton)
+            #
+            #  Wait for configurable pause to do the whole thing again.
+            #      A shorter pause will update the status on the GUI more often, but at
+            #      the expense of using more CPU cycles.  A longer pause will update the
+            #      status on the GUI less often, but will not use as many CPU cycles.
+            #
             time.sleep(watchDog.waitTime)
 
     except (KeyboardInterrupt, SystemExit):

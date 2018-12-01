@@ -1,6 +1,15 @@
 
 #:import stopTouchApp kivy.base.stopTouchApp
 
+#: set RED [1, 0, 0, 1]
+#: set GREEN [0, 1, 0, 1]
+#: set BLUE [0, 0, 1, 1]
+#: set YELLOW [1, 1, 0, 1]
+#: set BLACK [0, 0, 0, 1]
+#: set GREY [1, 1, 1, 1]
+#: set TEAL [0, 1, 1, 1]
+#: set MAGENTA [1, 0, 1, 1]
+
 ScreenManager:
     id: 'manager'
     MenuScreen:
@@ -11,14 +20,6 @@ ScreenManager:
         name: 'left'
     RearScreen:
         name: 'rear'
-    QuadScreen:
-        name: 'quad'
-    FrontQScreen:
-        name: 'frontquad'
-    LeftQScreen:
-        name: 'leftquad'
-    RearQScreen:
-        name: 'rearquad'
     SettingsScreen:
         name: 'settings'
     UploadScreen:
@@ -29,9 +30,12 @@ ScreenManager:
         name: 'eventsummary'
     SystemStatusScreen:
         name: 'systemstatus'
+    TimeSyncScreen:
+        name: 'timesync'
+    SystemWorksScreen:
+        name: 'systemworks'
     ShutdownScreen:
         name: 'shutdown'
-        
 
 <Separator@Widget>:
     canvas:
@@ -91,28 +95,30 @@ ScreenManager:
 <TopBar>
     ActionView:
         ActionPrevious:
-            app_icon: "images/police_icon.png"
+            app_icon: "images/vteLogo.jpg"
             title: ' Video Traffic Enforcement'
             with_previous: False
-
         ActionButton:
             text: 'Main'
             on_press: app.root.current = 'menu'
         ActionButton:
-            text: 'Cameras'
-        ActionButton:
             text: 'Radar'
             on_press: app.root.current = 'radar'
         ActionButton:
-            text: 'GPS'
-        ActionButton:
             text: 'Events'
+            on_press: app.root.current = 'eventsummary'
         ActionButton:
             text: 'System'
-            on_press: app.root.current = 'systemstatus'
-            
+            on_press: app.root.current = 'systemworks'          
         ActionButton:
-            text: 'Logs'
+            text: 'TimeSync'
+            on_press: app.root.current = 'timesync'
+        ActionButton:
+            text: 'Upload'
+            on_press: app.root.current = 'upload'
+        ActionButton:
+            text: 'Status'
+            on_press: app.root.current = 'systemstatus'
         ActionButton:
             text: 'Settings'
             on_press: app.open_settings()
@@ -123,27 +129,47 @@ ScreenManager:
 <SystemButtons>
     BoxLayout:
         orientation: 'horizontal'
-        Label:
-            text: 'System'
+        spacing: 10
         Button:
             id: system
             text: 'System\n' + app.systemStatus
             halign: 'center'
+            background_color: app.systemColor
             on_press: root.systemButtonDispatch()
         Button:
-            text: 'Upload Data'
-            on_press: app.root.current = 'upload'
+            id: audio
+            text: 'Audio\n' + app.audioStatus
+            halign: 'center'
+            background_color: RED if app.audioStatus == "OFF" else GREEN
+            on_press: root.buttonAudio()
         Button:
-            text: 'Status'
-            on_press: app.root.current = 'systemstatus'
-        Label:
-            text: ''
+            id: leftcam
+            text: 'Left Camera\n' + app.leftCameraStatus
+            halign: 'center'
+            background_color: RED if app.leftCameraStatus == "OFF" else GREEN
+            on_press: root.buttonLeftCam()
+        Button:
+            id: frontcam
+            text: 'Front Camera\n' + app.frontCameraStatus
+            halign: 'center'
+            background_color: RED if app.frontCameraStatus == "OFF" else GREEN
+            on_press: root.buttonFrontCam()
+        Button:
+            id: rearcam
+            text: 'Rear Camera\n' + app.rearCameraStatus
+            halign: 'center'
+            background_color: RED if app.rearCameraStatus == "OFF" else GREEN
+            on_press: root.buttonRearCam()
+        Button:
+            text: 'Right Camera\nFUTURE'
+            halign: 'center'
 
 <CameraViewButtons>
     BoxLayout:
         orientation: 'horizontal'
+        spacing: 10
         Label:
-            text: 'View'
+            text: ''
         Button:
             text: 'Left View'
             on_press: root.buttonLeftView()
@@ -159,87 +185,45 @@ ScreenManager:
         Button:
             text: 'Multi View'
             on_press: root.buttonMultiView()
-
-<CameraControlButtons>
-    BoxLayout:
-        orientation: 'horizontal'
         Label:
-            text: 'Camera'
-        Button:
-            id: leftcam
-            text: 'Left Camera\n' + app.leftCameraStatus
-            halign: 'center'
-            background_color: (1,0,0,1) if app.leftCameraStatus == "OFF" else (0,1,0,1)
-            on_press: root.buttonLeftCam()
-        Button:
-            id: frontcam
-            text: 'Front Camera\n' + app.frontCameraStatus
-            halign: 'center'
-            background_color: (1,0,0,1) if app.frontCameraStatus == "OFF" else (0,1,0,1)
-            on_press: root.buttonFrontCam()
-        Button:
-            id: rearcam
-            
-            text: 'Rear Camera\n' + app.rearCameraStatus
-            halign: 'center'
-            background_color: (1,0,0,1) if app.rearCameraStatus == "OFF" else (0,1,0,1)
-            on_press: root.buttonRearCam()
-        Button:
-            text: 'Right Camera\nDEACTIVATED'
-            halign: 'center'
+            text: ''
 
 <SubsystemButtons>
     BoxLayout:
         orientation: 'horizontal'
-        Label:
-            text: 'Subsystems'
-        Button:
-            id: audio
-            text: 'Audio\n' + app.audioStatus
+        Button:           
+            id: bluetooth
+            text: 'Bluetooth'
+            background_color: GREEN if app.btStatus == "CONNECTED" else RED
             halign: 'center'
-            background_color: (1,0,0,1) if app.audioStatus == "OFF" else (0,1,0,1)
-            on_press: root.buttonAudio()
+            on_press: root.buttonBTConnect()
         Button:
             id: radar
-            text: 'Radar\n' + app.radarStatus
-            background_color: (1,0,0,1) if app.radarStatus == "OFF" else (0,1,0,1)
+            text: 'Radar'
+            background_color: RED if app.radarStatus == "OFF" else GREEN
             halign: 'center'
-            on_press: app.root.current = 'radar'
-        Button:           
-            id: gps
-            text: 'GPS\n' + app.gpsStatus
-            background_color: (1,0,0,1) if app.gpsStatus == "OFF" else (0,1,0,1)
-            halign: 'center'
+            on_press: root.buttonRadar()
         Button:
             id: gpslog
-            text: 'GPS Log\n' + app.gpsLogStatus
-            background_color: (1,0,0,1) if app.gpsLogStatus == "OFF" else (0,1,0,1)
-            halign: 'center'
-
-<DataButtons>
-    BoxLayout:
-        orientation: 'horizontal'
-        Label:
-            text: 'Data'
-        Button:
-            text: 'Event\nSummary'
-            halign: 'center'
-            on_press: app.root.current = 'eventsummary'
-        Button:
-            text: ''
+            text: 'GPS'
+            background_color: RED if app.gpsLogStatus == "OFF" else GREEN
             halign: 'center'
         Button:
-            text: ''
-            halign: 'center'
         Button:
-            text: ''
+        Button:
+        Button:
+            id: wifi
+            text: 'WiFi'
+            background_color: GREY if app.wifiStatus == "OFF" else GREEN
             halign: 'center'
+            on_press: root.buttonWifi()
 
 <EventButtons>
     BoxLayout:
         orientation: 'horizontal'
+        spacing: 10
         Label:
-            text: 'Events'
+            text: ''
         Button:
             id: event_speeding
             text: 'Speeding'
@@ -260,22 +244,43 @@ ScreenManager:
             text: 'Reckless\nDriving'
             halign: 'center'
             on_press: root.eventReckless()
+        Label:
+            text: ''
 
 <ButtonPanel>
     BoxLayout:
         orientation: 'vertical'
-        SystemButtons:
+        Label:
+            size_hint_y: 0.05
+        BoxLayout:
+            size_hint_y: 0.15
+            orientation: 'horizontal'
+            Label:
+                size_hint_x: 0.05
+            SystemButtons:
+                size_hint_x: 0.9
+            Label:
+                size_hint_x: 0.05
+        Label:
+            size_hint_y: 0.10
         CameraViewButtons:
-        CameraControlButtons:
-        SubsystemButtons:
-        DataButtons:
+            size_hint_y: 0.15
+        Label:
+            size_hint_y: 0.05
         EventButtons:
+            size_hint_y: 0.15
+        Label:
+            size_hint_y: 0.10
+            
 
 <StatusBar>
     BoxLayout:
         orientation: 'horizontal'
         Label:
+            size_hint_x: 0.2
             text: root.currentTime
+        SubsystemButtons:
+            size_hint_x: 0.8
 
 #############################################################
 
@@ -300,47 +305,32 @@ ScreenManager:
             on_press: root.buttonControlView()
             on_press: app.root.current = 'menu'
 
-<FrontQScreen>:
+#############################################################
+
+<TimeSyncScreen>:
+    id: 'timesync'
+    on_enter: root.schedUpdate()
+    on_leave: root.cancelUpdate()
+
     BoxLayout:
-        Button:
-            text: 'Front View'
-            on_press: app.root.current = 'quad'
+        padding: 20
+        spacing: 10
+        orientation: 'vertical'
 
-<LeftQScreen>:
-    BoxLayout:
+        TopBar:
+            size_hint_y: 0.1
+            
+        Label:
+            font_name: 'NotoMono-Regular'
+            text: root.document
+        
         Button:
-            text: 'Left View'
-            on_press: app.root.current = 'quad'
-
-<RearQScreen>:
-    BoxLayout:
-        Button:
-            text: 'Rear View'
-            on_press: app.root.current = 'quad'
-
-
-<QuadScreen>:
-    GridLayout: 
-        rows: 2
-        cols: 2
-        Button:
-            text: 'Left View'
-            on_press: app.root.current = 'leftquad'
-        Button:
-            text: 'Front View'
-            on_press: app.root.current = 'frontquad'
-        Button:
-            text: 'Rear View'
-            on_press: app.root.current = 'rearquad'
-        Button:
-            text: 'Info View'
+            size_hint_y: 0.1
+            text: 'Return Main Menu'
             on_press: app.root.current = 'menu'
 
-<SettingsScreen>:
-    BoxLayout:
-        Button:
-            text: 'Settings View'
-            on_press: app.root.current = 'menu'
+        StatusBar:
+            size_hint_y: 0.1
 
 <UploadScreen>:
     id: 'upload'
@@ -528,9 +518,106 @@ ScreenManager:
         StatusBar:
             size_hint_y: 0.1
 
+<CameraViews@BoxLayout>
+    BoxLayout:
+        orientation: 'vertical'
+        row: 1
+        col: 1
+        Label:
+            text_size: self.size
+            font_size: '20sp'
+            valign: 'top'
+            halign: 'center'
+            text: '\nCamera Views'
+            canvas.after:
+                Color:
+                    rgb: 1, 1, 1, 0.75
+                Line:
+                    points: self.x, self.y, self.right, self.y
+                Line:
+                    points: self.x, self.top, self.right, self.top
+                Line:
+                    points: self.x, self.y, self.x, self.top
+                Line:
+                    points: self.right, self.y, self.right, self.top
+
+<SystemControls>
+    BoxLayout:
+        spacing: 10
+        padding: 10
+        orientation: 'horizontal'
+
+        Label:
+            text: root.processor
+        Label:
+            halign: 'center'
+            text: "Memory \n" + root.memory
+        Label:
+            halign: 'center'
+            text: "IP Address \n" + root.ipAddress
+        Button:
+            id: reboot
+            background_color: RED
+            halign: 'center'
+            text: 'Reboot'
+            on_press: root.do_reboot()
+        Button:
+            id: clrmemory
+            background_color: RED
+            halign: 'center'
+            text: 'Clear\nMemory'
+            on_press: root.do_clearMemory()
+        
+
+<SystemWorksScreen>
+    on_enter: root.systemData()
+    on_leave: root.cancelSystemData()
+    
+    BoxLayout:
+        padding: 20
+        spacing: 10
+        orientation: 'vertical'
+
+        TopBar:
+            size_hint_y: 0.1
+            
+        BoxLayout:
+            size_hint_y: 1.1
+            spacing: 10
+            orientation: 'horizontal'
+
+            CameraViews:
+                size_hint_x: 0.2
+
+            BoxLayout:
+                size_hint_x: 0.8
+                orientation: 'vertical'
+                text_size: self.size
+                SystemControls:
+                    processor: 'Control'
+                    memory: root.controlMemory
+                    ipAddress: root.controlIPAddress
+                SystemControls:
+                    processor: 'Left'
+                    memory: root.leftMemory
+                    ipAddress: root.leftIPAddress
+                SystemControls:
+                    processor: 'Front'
+                    memory: root.frontMemory
+                    ipAddress: root.frontIPAddress
+                SystemControls:
+                    processor: 'Rear'
+                    memory: root.rearMemory
+                    ipAddress: root.rearIPAddress
+                Label
+                Label
+                
+        Button:
+            size_hint_y: 0.1
+            text: 'Return Main Menu'
+            on_press: app.root.current = 'menu'
 
 <EventSummaryScreen>
-
     on_pre_enter: root.eventDataStatus()
     on_enter: root.eventData()
 
@@ -541,7 +628,7 @@ ScreenManager:
             size_hint: 1, None
             size_hint_y: None
             height: 25
-            cols: 6
+            cols: 5
             Label:
                 text: "Transmit Time"
             Label:
@@ -550,8 +637,6 @@ ScreenManager:
                 text: "Locked Speed"
             Label:
                 text: "Max Speed"
-            Label:
-                text: "Patrol Speed"
             Label:
                 text: "Violation"
 
@@ -568,7 +653,7 @@ ScreenManager:
             viewclass: 'Label'
             data: [{'text': str(x)} for x in root.data]
             RecycleGridLayout:
-                cols: 6
+                cols: 5
                 default_size: None, dp(26)
                 default_size_hint: 1, None
                 size_hint_y: None
@@ -593,7 +678,6 @@ ScreenManager:
         orientation: 'vertical'
 
 <SystemStatusScreen>
-
     on_pre_enter: root.systemData()
     on_enter: root.fetchSystemData()
 
